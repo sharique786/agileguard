@@ -1,0 +1,3 @@
+agileguard:
+  gemini:
+    use-mock: true

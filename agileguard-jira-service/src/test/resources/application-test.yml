@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testjiradb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+agileguard:
+  jira:
+    use-mock: true
+    aging-threshold-days: 5
+    min-description-length: 20
+    scan-tenant-id: test

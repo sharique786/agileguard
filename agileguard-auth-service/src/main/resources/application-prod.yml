@@ -1,0 +1,68 @@
+# ============================================================
+# AgileGuard — Auth Service  |  PRODUCTION environment
+# Activated by: -Dspring.profiles.active=prod
+#
+# Database : Google Cloud SQL (PostgreSQL) via Unix socket.
+#            Connection string uses GCP Cloud SQL connector.
+# Secrets  : All sensitive values injected via GCP Secret
+#            Manager at container startup — never hardcoded.
+# Schema   : validate only — all DDL via Flyway migrations.
+# ============================================================
+spring:
+  datasource:
+    # Cloud SQL connector format for GCP
+    url: jdbc:postgresql:///${DB_NAME:agileguard_prod}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 25
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  h2:
+    console:
+      enabled: false
+
+server:
+  port: 8081
+  # Forward headers behind GCP Load Balancer / Cloud Run
+  forward-headers-strategy: framework
+
+agileguard:
+  jwt:
+    secret: ${AGILEGUARD_JWT_SECRET}     # GCP Secret Manager
+    access-token-expiry-ms: 900000       # 15 min — keep short in prod
+    refresh-token-expiry-ms: 604800000   # 7 days
+  onboarding:
+    enabled: ${ONBOARDING_ENABLED:true}
+    default-plan: FREE
+    # In prod, set ONBOARDING_SEND_EMAIL=true and configure an SMTP / SendGrid bean
+    send-welcome-email: ${ONBOARDING_SEND_EMAIL:false}
+    welcome-email-from: ${ONBOARDING_EMAIL_FROM:noreply@agileguard.example.com}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: WARN
+    com.agileguard: INFO
+    org.springframework.security: WARN

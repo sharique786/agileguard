@@ -1,0 +1,65 @@
+# ============================================================
+# AgileGuard — API Gateway  |  UAT environment
+# Activated by: -Dspring.profiles.active=uat
+#
+# Purpose : User-acceptance testing with real JIRA / Gemini
+#           APIs and production-like data.
+# ============================================================
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "https://uat.agileguard.example.com"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        - id: auth-service
+          uri: http://agileguard-auth:8081
+          predicates: [Path=/api/auth/**, /api/tenants/**, /api/projects/**]
+          filters: [StripPrefix=0]
+        - id: onboarding-service
+          uri: http://agileguard-auth:8081
+          predicates: [Path=/api/onboarding/**]
+          filters: [StripPrefix=0]
+        - id: admin-service
+          uri: http://agileguard-auth:8081
+          predicates: [Path=/api/admin/**]
+          filters: [StripPrefix=0]
+        - id: jira-service
+          uri: http://agileguard-jira:8082
+          predicates: [Path=/api/jira/**]
+          filters: [StripPrefix=0]
+        - id: ai-service
+          uri: http://agileguard-ai:8083
+          predicates: [Path=/api/ai/**]
+          filters: [StripPrefix=0]
+        - id: github-service
+          uri: http://agileguard-github:8084
+          predicates: [Path=/api/github/**]
+          filters: [StripPrefix=0]
+
+server:
+  port: 8080
+  # Enable HTTPS in UAT (terminate at load-balancer or configure here)
+  # ssl:
+  #   key-store: classpath:keystore.p12
+  #   key-store-password: ${SSL_KEYSTORE_PASSWORD}
+
+agileguard:
+  jwt:
+    secret: ${AGILEGUARD_JWT_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+logging:
+  level:
+    com.agileguard: INFO
+    org.springframework.cloud.gateway: WARN

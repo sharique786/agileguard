@@ -1,0 +1,55 @@
+# ============================================================
+# AgileGuard — Auth Service  |  DEVELOPMENT environment
+# Activated by: -Dspring.profiles.active=dev
+#
+# Database : PostgreSQL on dev server (or cloud SQL dev instance)
+# Schema   : spring.jpa.hibernate.ddl-auto = update
+#            (schema is updated incrementally, not wiped)
+# Seed data: DataInitializer runs only on "local" profile so
+#            no demo users are created here automatically.
+# ============================================================
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:agileguard_dev}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:agileguard}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update          # safe incremental update — never drop in dev
+    show-sql: false
+  h2:
+    console:
+      enabled: false            # H2 console disabled on all non-local environments
+
+server:
+  port: 8081
+
+agileguard:
+  jwt:
+    secret: ${AGILEGUARD_JWT_SECRET}
+    access-token-expiry-ms: 900000
+    refresh-token-expiry-ms: 604800000
+  onboarding:
+    enabled: true
+    default-plan: FREE
+    send-welcome-email: false
+    welcome-email-from: noreply@dev.agileguard.example.com
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.agileguard: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN

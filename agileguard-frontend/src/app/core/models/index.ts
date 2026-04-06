@@ -1,0 +1,68 @@
+export interface LoginRequest { email: string; password: string; }
+export interface RegisterRequest { email: string; fullName: string; password: string; tenantId: string; role: string; featureTeamId?: string; }
+export interface AuthResponse { accessToken: string; refreshToken: string; tokenType: string; expiresIn: number; userId: string; email: string; fullName: string; role: string; tenantId: string; featureTeamId?: string; }
+export interface Tenant { id: string; name: string; slug: string; plan: string; active: boolean; jiraBaseUrl?: string; jiraUserEmail?: string; jiraApiToken?: string; }
+export interface ProjectTeam { id: string; tenantId: string; name: string; jiraProjectKey: string; githubOrg: string; }
+export interface FeatureTeam { id: string; projectTeamId: string; name: string; jiraComponent: string; githubRepos?: string; }
+export interface JiraIssue { id: string; key: string; summary: string; description: string; acceptanceCriteria: string; issueType: string; status: string; storyPoints: number; assigneeName: string; timeSpentMinutes: number; statusChangedAt: string; subTasks: SubTask[]; linkedPullRequests: string[]; projectKey: string; }
+export interface SubTask { id: string; key: string; type: string; status: string; summary: string; }
+export interface GapFinding { issueKey: string; type: string; severity: string; message: string; suggestedAction: string; detectedAt: string; }
+export interface GapReport { issueKey: string; issueSummary: string; qualityScore: number; flagged: boolean; findings: GapFinding[]; criticalCount: number; errorCount: number; warningCount: number; }
+export interface SprintHealthReport { projectKey: string; tenantId: string; totalIssues: number; issuesWithGaps: number; flaggedIssues: number; averageQualityScore: number; overallHealthScore: number; issueReports: GapReport[]; agingIssueKeys: string[]; generatedAt: string; }
+export interface ValidationResult { qualityScore: number; summary: string; valid: boolean; issues: ValidationIssue[]; suggestions: { improvedDescription: string; acceptanceCriteria: string[]; estimationHint: string; }; }
+export interface ValidationIssue { severity: string; field: string; message: string; }
+export interface WorkflowRun { id: number; name: string; headBranch: string; status: string; conclusion: string; workflowName: string; repoFullName: string; triggeredBy: string; jiraIssueKey: string; durationSeconds: number; startedAt: string; htmlUrl: string; }
+export interface SdlcStatus { jiraIssueKey: string; allGatesPassed: boolean; unitTestsPassed: boolean; integrationTestsPassed: boolean; coverageThresholdMet: boolean; securityScanPassed: boolean; prMerged: boolean; prReviewed: boolean; failedGates: string[]; recentRuns: WorkflowRun[]; }
+export interface LeaderboardEntry { rank: number; userId: string; fullName: string; githubUsername: string; role: string; featureTeam: string; compositeScore: number; commitCount: number; prCount: number; prReviewCount: number; ciPassRate: number; storiesDelivered: number; avgStoryQuality: number; badges: string[]; }
+export interface ApiResponse<T> { success: boolean; message: string; data: T; timestamp: string; }
+
+// ─── Onboarding ────────────────────────────────────────────────────────────
+export interface OnboardingRequest {
+  organisation: { name: string; slug: string; plan: string; jiraBaseUrl?: string; jiraUserEmail?: string; jiraApiToken?: string; };
+  projectTeam:  { name: string; jiraProjectKey?: string; githubOrg?: string; description?: string; };
+  featureTeams: { name: string; jiraComponent?: string; githubRepos?: string; description?: string; }[];
+  adminUser:    { email: string; fullName: string; password: string; githubUsername?: string; jiraAccountId?: string; };
+}
+export interface OnboardingResponse {
+  tenantId: string; tenantName: string; tenantSlug: string;
+  projectTeamId: string; projectTeamName: string;
+  featureTeams: { id: string; name: string }[];
+  adminUserId: string; adminEmail: string;
+  tokens: AuthResponse;
+}
+export interface JiraConnectionTestRequest  { baseUrl: string; userEmail: string; apiToken: string; }
+export interface JiraConnectionTestResponse { connected: boolean; message: string; jiraAccountId: string; displayName: string; accessibleProjects: string[]; }
+
+// ─── Admin / management ────────────────────────────────────────────────────
+export interface UserResponse {
+  id: string; email: string; fullName: string; role: string;
+  tenantId: string; tenantName: string;
+  featureTeamId?: string; featureTeamName?: string;
+  projectTeamId?: string; projectTeamName?: string;
+  githubUsername?: string; jiraAccountId?: string;
+  active: boolean; createdAt: string;
+}
+export interface UpdateTenantRequest { name?: string; jiraBaseUrl?: string; jiraUserEmail?: string; jiraApiToken?: string; plan?: string; active?: boolean; }
+export interface UpdateUserRoleRequest { role: string; featureTeamId?: string; }
+
+// ─── Story Editor lookup types ─────────────────────────────────────────────
+export type Priority     = 'Blocker' | 'Critical' | 'Major' | 'Medium' | 'Minor' | 'Low' | 'Trivial';
+export type BusinessLine = 'Business' | 'GT' | 'Platform' | 'Infrastructure' | 'Data' | 'Security';
+
+export interface JiraSprint   { id: number; name: string; state: string; startDate?: string; endDate?: string; goal?: string; }
+export interface JiraComponent{ id: string; name: string; description?: string; }
+export interface JiraVersion  { id: string; name: string; description?: string; released: boolean; releaseDate?: string; }
+export interface JiraUser     { accountId: string; displayName: string; emailAddress: string; avatarUrl?: string; }
+export interface JiraEpic     { issueKey: string; name: string; status: string; color?: string; }
+
+export interface CreateIssueRequest {
+  projectKey: string; summary: string; description: string;
+  acceptanceCriteria: string; issueType: string;
+  priority: string; businessLine: string;
+  storyPoints?: number; sprintId?: number; sprintName?: string;
+  epicLink?: string; epicName?: string;
+  reporterAccountId?: string; reporterName?: string;
+  components?: string[]; fixVersions?: string[];
+  labels?: string[]; teamNames?: string[];
+  assigneeAccountId?: string; assigneeName?: string;
+}

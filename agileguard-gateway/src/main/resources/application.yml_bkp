@@ -1,0 +1,76 @@
+spring:
+  main:
+    web-application-type: reactive
+  application:
+    name: agileguard-gateway
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:4200"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        # Auth Service — public (no JWT needed)
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+
+        # JIRA Service
+        - id: jira-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/jira/**
+          filters:
+            - StripPrefix=0
+
+        # AI Service
+        - id: ai-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - StripPrefix=0
+
+        # GitHub / Reports Service
+        - id: github-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/github/**
+          filters:
+            - StripPrefix=0
+
+        # Tenant / User Management (served by Auth service)
+        - id: tenant-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/tenants/**, /api/projects/**
+          filters:
+            - StripPrefix=0
+
+server:
+  port: 8080
+
+# Must match the secret in agileguard-auth-service
+agileguard:
+  jwt:
+    secret: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBhZ2lsZWd1YXJkIGp3dCBzaWduaW5n
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+logging:
+  level:
+    com.agileguard: DEBUG
+    org.springframework.cloud.gateway: INFO

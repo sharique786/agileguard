@@ -1,0 +1,65 @@
+# ============================================================
+# AgileGuard — Auth Service
+# Default / LOCAL profile  (H2 in-memory, demo data seeded)
+# Activated by: java -jar auth-service.jar
+# ============================================================
+spring:
+  application:
+    name: agileguard-auth-service
+  profiles:
+    active: local
+
+  # H2 in-memory — wiped on restart, perfect for local development
+  datasource:
+    url: jdbc:h2:mem:authdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop     # drops and re-creates schema on every restart
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+
+server:
+  port: 8081
+
+agileguard:
+  jwt:
+    # LOCAL ONLY — 256-bit base64 secret. Never use in deployed environments.
+    secret: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBhZ2lsZWd1YXJkIGp3dCBzaWduaW5n
+    access-token-expiry-ms: 900000     # 15 minutes
+    refresh-token-expiry-ms: 604800000 # 7 days
+  # Onboarding configuration (used by OnboardingService)
+  onboarding:
+    # Allow self-service onboarding from the wizard (true = public endpoint active)
+    enabled: true
+    # Default plan assigned when plan is not specified in request
+    default-plan: FREE
+    # Whether to send a welcome email after onboarding (false = no email service locally)
+    send-welcome-email: false
+    welcome-email-from: noreply@agileguard.example.com
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.agileguard: DEBUG
+    org.springframework.security: WARN
+

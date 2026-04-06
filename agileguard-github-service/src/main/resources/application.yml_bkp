@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: agileguard-github-service
+server:
+  port: 8084
+agileguard:
+  github:
+    use-mock: true            # Set false and add token for real GitHub API
+    token: YOUR_GITHUB_TOKEN  # Personal Access Token with repo, workflow scopes
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+logging:
+  level:
+    com.agileguard: DEBUG

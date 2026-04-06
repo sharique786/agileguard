@@ -1,0 +1,27 @@
+# ============================================================
+# AgileGuard — GitHub Service  |  DEVELOPMENT environment
+# Activated by: -Dspring.profiles.active=dev
+#
+# GitHub: PAT with repo + workflow scopes for the dev org.
+#         Set GITHUB_USE_MOCK=false to use real GitHub API.
+# ============================================================
+server:
+  port: 8084
+
+agileguard:
+  github:
+    use-mock: ${GITHUB_USE_MOCK:false}      # false = real GitHub in dev
+    token: ${GITHUB_TOKEN}                  # PAT from env var / secret
+    api-base-url: https://api.github.com
+    connect-timeout-seconds: 10
+    read-timeout-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.agileguard: DEBUG

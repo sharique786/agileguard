@@ -1,0 +1,85 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
+import {
+  ApiResponse, JiraIssue, GapReport, SprintHealthReport,
+  JiraSprint, JiraComponent, JiraVersion, JiraUser, JiraEpic,
+  CreateIssueRequest
+} from '../models';
+
+/** Service for all JIRA-related API calls including Story Editor lookups. */
+@Injectable({ providedIn: 'root' })
+export class JiraService {
+  private base = `${environment.apiUrl}/jira`;
+
+  constructor(private http: HttpClient) {}
+
+  // ── Existing ─────────────────────────────────────────────────────────────
+
+  getActiveSprintIssues(projectKey: string): Observable<ApiResponse<JiraIssue[]>> {
+    return this.http.get<ApiResponse<JiraIssue[]>>(`${this.base}/projects/${projectKey}/issues`);
+  }
+
+  getIssue(issueKey: string): Observable<ApiResponse<JiraIssue>> {
+    return this.http.get<ApiResponse<JiraIssue>>(`${this.base}/issues/${issueKey}`);
+  }
+
+  getIssueGapReport(issueKey: string): Observable<ApiResponse<GapReport>> {
+    return this.http.get<ApiResponse<GapReport>>(`${this.base}/issues/${issueKey}/gap-report`);
+  }
+
+  scanProject(projectKey: string): Observable<ApiResponse<SprintHealthReport>> {
+    return this.http.post<ApiResponse<SprintHealthReport>>(
+      `${this.base}/projects/${projectKey}/scan`, {});
+  }
+
+  getOpenGaps(): Observable<ApiResponse<any[]>> {
+    return this.http.get<ApiResponse<any[]>>(`${this.base}/gaps`);
+  }
+
+  validateTransition(issueKey: string, toStatus: string): Observable<ApiResponse<string>> {
+    return this.http.post<ApiResponse<string>>(
+      `${this.base}/issues/${issueKey}/validate-transition`, null,
+      { params: new HttpParams().set('toStatus', toStatus) });
+  }
+
+  // ── Story Editor lookups (NEW) ────────────────────────────────────────────
+
+  /** Typeahead: returns sprints matching the query string. */
+  searchSprints(projectKey: string, q: string): Observable<ApiResponse<JiraSprint[]>> {
+    return this.http.get<ApiResponse<JiraSprint[]>>(
+      `${this.base}/projects/${projectKey}/sprints`,
+      { params: new HttpParams().set('q', q) });
+  }
+
+  /** Typeahead: returns project components matching the query string. */
+  searchComponents(projectKey: string, q: string): Observable<ApiResponse<JiraComponent[]>> {
+    return this.http.get<ApiResponse<JiraComponent[]>>(
+      `${this.base}/projects/${projectKey}/components`,
+      { params: new HttpParams().set('q', q) });
+  }
+
+  /** Typeahead: returns fix versions matching the query string. */
+  searchVersions(projectKey: string, q: string): Observable<ApiResponse<JiraVersion[]>> {
+    return this.http.get<ApiResponse<JiraVersion[]>>(
+      `${this.base}/projects/${projectKey}/versions`,
+      { params: new HttpParams().set('q', q) });
+  }
+
+  /** Typeahead: searches JIRA users by display name or email. */
+  searchUsers(q: string): Observable<ApiResponse<JiraUser[]>> {
+    return this.http.get<ApiResponse<JiraUser[]>>(
+      `${this.base}/users`, { params: new HttpParams().set('q', q) });
+  }
+
+  /** Resolves an epic key (e.g. "COMMSSURV-5") to its name and status. */
+  getEpic(epicKey: string): Observable<ApiResponse<JiraEpic>> {
+    return this.http.get<ApiResponse<JiraEpic>>(`${this.base}/epics/${epicKey}`);
+  }
+
+  /** Creates a new JIRA issue with all enriched fields. */
+  createIssue(request: CreateIssueRequest): Observable<ApiResponse<JiraIssue>> {
+    return this.http.post<ApiResponse<JiraIssue>>(`${this.base}/issues/create`, request);
+  }
+}

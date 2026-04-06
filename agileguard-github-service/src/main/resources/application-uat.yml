@@ -1,0 +1,26 @@
+# ============================================================
+# AgileGuard — GitHub Service  |  UAT environment
+# Activated by: -Dspring.profiles.active=uat
+#
+# GitHub: PAT for the UAT GitHub org / repos.
+# ============================================================
+server:
+  port: 8084
+
+agileguard:
+  github:
+    use-mock: false
+    token: ${GITHUB_TOKEN}
+    api-base-url: https://api.github.com
+    connect-timeout-seconds: 15
+    read-timeout-seconds: 45
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.agileguard: INFO

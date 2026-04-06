@@ -1,0 +1,54 @@
+# ============================================================
+# AgileGuard — JIRA Service  |  UAT environment
+# Activated by: -Dspring.profiles.active=uat
+#
+# JIRA    : Connected to UAT Atlassian workspace with real
+#           sprint data mirrored from production.
+# Database: PostgreSQL UAT instance — Flyway migrations.
+# ============================================================
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME:agileguard_uat}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 12
+      minimum-idle: 3
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  h2:
+    console:
+      enabled: false
+
+server:
+  port: 8082
+
+agileguard:
+  jira:
+    use-mock: false                     # Real JIRA in UAT — no mocks
+    base-url: ${JIRA_BASE_URL}          # e.g. https://db-uat.atlassian.net
+    user-email: ${JIRA_USER_EMAIL}
+    api-token: ${JIRA_API_TOKEN}
+    aging-threshold-days: 5
+    min-description-length: 20
+    scan-project-keys: ${JIRA_SCAN_PROJECTS}
+    scan-tenant-id: ${JIRA_SCAN_TENANT}
+    scan-interval-ms: 900000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.agileguard: INFO

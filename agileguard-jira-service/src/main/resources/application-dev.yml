@@ -1,0 +1,51 @@
+# ============================================================
+# AgileGuard — JIRA Service  |  DEVELOPMENT environment
+# Activated by: -Dspring.profiles.active=dev
+#
+# JIRA    : Connects to a shared DEV Atlassian sandbox workspace.
+#           Set use-mock: false once dev JIRA credentials are ready.
+# Database: PostgreSQL dev instance shared with auth service.
+# ============================================================
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:agileguard_dev}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:agileguard}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 2
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  h2:
+    console:
+      enabled: false
+
+server:
+  port: 8082
+
+agileguard:
+  jira:
+    # Set use-mock: false and fill credentials to connect to a real JIRA workspace
+    use-mock: ${JIRA_USE_MOCK:true}
+    base-url: ${JIRA_BASE_URL:https://dev-sandbox.atlassian.net}
+    user-email: ${JIRA_USER_EMAIL}
+    api-token: ${JIRA_API_TOKEN}        # Injected from env var / secret
+    aging-threshold-days: 5
+    min-description-length: 20
+    scan-project-keys: ${JIRA_SCAN_PROJECTS:PLAT}
+    scan-tenant-id: ${JIRA_SCAN_TENANT:dev-tenant}
+    scan-interval-ms: 900000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.agileguard: DEBUG

@@ -1,0 +1,27 @@
+# ============================================================
+# AgileGuard — AI Service  |  UAT environment
+# Activated by: -Dspring.profiles.active=uat
+#
+# Gemini: Real API, gemini-1.5-pro for higher quality in UAT
+#         to match production behaviour under test conditions.
+# ============================================================
+server:
+  port: 8083
+
+agileguard:
+  gemini:
+    use-mock: false
+    api-key: ${GEMINI_API_KEY}
+    model: ${GEMINI_MODEL:gemini-1.5-pro}   # Higher quality model for UAT
+    max-tokens: 2048
+    temperature: 0.3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.agileguard: INFO

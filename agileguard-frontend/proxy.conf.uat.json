@@ -1,0 +1,8 @@
+{
+  "/api": {
+    "target": "https://uat-api.agileguard.example.com",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "warn"
+  }
+}

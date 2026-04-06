@@ -1,0 +1,30 @@
+# ============================================================
+# AgileGuard — GitHub Service
+# Default / LOCAL profile  (GitHub mock — no token needed)
+# ============================================================
+spring:
+  application:
+    name: agileguard-github-service
+  profiles:
+    active: local
+
+server:
+  port: 8084
+
+agileguard:
+  github:
+    use-mock: true            # Returns realistic mock workflow runs locally
+    token: LOCAL_PLACEHOLDER
+    api-base-url: https://api.github.com
+    connect-timeout-seconds: 10
+    read-timeout-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.agileguard: DEBUG

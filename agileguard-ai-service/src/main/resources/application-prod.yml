@@ -1,0 +1,35 @@
+# ============================================================
+# AgileGuard — AI Service  |  PRODUCTION environment
+# Activated by: -Dspring.profiles.active=prod
+#
+# Gemini: gemini-1.5-pro, API key from GCP Secret Manager.
+#         Temperature lowered for more consistent/safer output.
+#         Retry and timeout tuned for production SLA.
+# ============================================================
+server:
+  port: 8083
+  forward-headers-strategy: framework
+
+agileguard:
+  gemini:
+    use-mock: false
+    api-key: ${GEMINI_API_KEY}            # GCP Secret Manager
+    model: gemini-1.5-pro                 # Locked to pro in production
+    max-tokens: 2048
+    temperature: 0.2                      # Tighter, more deterministic output
+    timeout-seconds: 30
+    retry-attempts: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: WARN
+    com.agileguard: INFO

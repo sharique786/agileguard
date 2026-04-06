@@ -1,0 +1,151 @@
+import { Component, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { JiraService } from '../../core/services/jira.service';
+import { GitHubService } from '../../core/services/github.service';
+import { SprintHealthReport, WorkflowRun } from '../../core/models';
+
+/** Full gap reports page: sprint health, JIRA findings, and CI/CD status. */
+@Component({
+  selector: 'app-reports',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div>
+      <div class="page-header flex justify-between items-center">
+        <div>
+          <h1 class="page-title">📈 Gap & Health Reports</h1>
+          <p class="page-subtitle">Detailed SDLC quality analysis with JIRA and GitHub data</p>
+        </div>
+        <button class="btn btn-primary" (click)="loadAll()" [disabled]="loading()">
+          {{ loading() ? '⏳ Loading...' : '🔄 Refresh' }}
+        </button>
+      </div>
+
+      <div *ngIf="loading()" style="text-align:center;padding:48px">
+        <div class="spinner" style="width:40px;height:40px;margin:0 auto 16px"></div>
+        <p class="text-secondary">Fetching latest reports...</p>
+      </div>
+
+      <div *ngIf="!loading()">
+        <!-- Sprint Health Summary -->
+        <div class="card mb-24" *ngIf="report()">
+          <div class="card-title">Sprint Health Summary — {{ report()!.projectKey }}</div>
+          <div class="stats-grid" style="margin-bottom:0">
+            <div class="stat-card">
+              <div class="stat-value" [style.color]="scoreColor(report()!.overallHealthScore)">
+                {{ report()!.overallHealthScore }}%
+              </div>
+              <div class="stat-label">Overall Health</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ report()!.totalIssues }}</div>
+              <div class="stat-label">Total Issues</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" style="color:var(--warning)">{{ report()!.issuesWithGaps }}</div>
+              <div class="stat-label">Have Gaps</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" style="color:var(--danger)">{{ report()!.flaggedIssues }}</div>
+              <div class="stat-label">Flagged 🚨</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Detailed Issue Reports -->
+          <div class="card">
+            <div class="card-title">Issue-Level Gap Analysis</div>
+            <div *ngFor="let r of report()?.issueReports" class="mb-16"
+                 style="border:1px solid var(--border);border-radius:var(--radius);padding:16px"
+                 [style.border-color]="r.flagged ? '#fca5a5' : 'var(--border)'">
+              <div class="flex justify-between items-center mb-8">
+                <div class="flex items-center gap-8">
+                  <strong>{{ r.issueKey }}</strong>
+                  <span *ngIf="r.flagged" class="badge badge-danger">🚨 Flagged</span>
+                </div>
+                <div class="score-ring" style="width:40px;height:40px;font-size:14px"
+                     [ngClass]="scoreRingClass(r.qualityScore)">{{ r.qualityScore }}</div>
+              </div>
+              <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">{{ r.issueSummary }}</div>
+
+              <div *ngFor="let f of r.findings" class="gap-item" [ngClass]="f.severity" style="padding:8px">
+                <span class="gap-severity" [ngClass]="f.severity">{{ f.severity }}</span>
+                <div>
+                  <div style="font-size:12px;font-weight:500">{{ f.message }}</div>
+                  <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">→ {{ f.suggestedAction }}</div>
+                </div>
+              </div>
+              <div *ngIf="!r.findings.length" style="font-size:12px;color:var(--success)">✅ No gaps detected</div>
+            </div>
+          </div>
+
+          <!-- CI/CD Status -->
+          <div>
+            <div class="card mb-16">
+              <div class="card-title">GitHub Actions — Recent Runs</div>
+              <div *ngIf="workflowRuns().length === 0" class="text-secondary text-sm" style="padding:16px;text-align:center">
+                No workflow runs found
+              </div>
+              <div *ngFor="let run of workflowRuns()"
+                   style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+                <span style="font-size:20px">{{ runIcon(run.conclusion) }}</span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                    {{ run.workflowName }}
+                  </div>
+                  <div style="font-size:12px;color:var(--text-secondary)">
+                    {{ run.headBranch }} • by {{ run.triggeredBy }}
+                    <span *ngIf="run.jiraIssueKey" class="badge badge-purple" style="margin-left:6px">{{ run.jiraIssueKey }}</span>
+                  </div>
+                </div>
+                <div style="text-align:right;font-size:12px;color:var(--text-secondary)">
+                  {{ run.durationSeconds }}s
+                </div>
+                <span class="badge" [ngClass]="conclusionBadge(run.conclusion)">{{ run.conclusion || run.status }}</span>
+              </div>
+            </div>
+
+            <!-- Aging Issues Alert -->
+            <div class="card" *ngIf="report()?.agingIssueKeys?.length">
+              <div class="card-title" style="color:var(--danger)">⏰ Aging Stories</div>
+              <p class="text-secondary text-sm mb-16">
+                These stories have been in the same status beyond the configured threshold.
+              </p>
+              <div *ngFor="let key of report()!.agingIssueKeys" class="flex items-center gap-8 mb-8">
+                <span class="badge badge-danger">{{ key }}</span>
+                <span class="text-sm text-secondary">Requires immediate attention</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+})
+export class ReportsComponent implements OnInit {
+  report = signal<SprintHealthReport | null>(null);
+  workflowRuns = signal<WorkflowRun[]>([]);
+  loading = signal(true);
+
+  constructor(private jira: JiraService, private github: GitHubService) {}
+
+  ngOnInit(): void { this.loadAll(); }
+
+  loadAll(): void {
+    this.loading.set(true);
+    this.jira.scanProject('PLAT').subscribe({
+      next: (res) => { this.report.set(res.data); this.loading.set(false); },
+      error: () => this.loading.set(false)
+    });
+    this.github.getWorkflowRuns('db-platform', 'payments-service').subscribe({
+      next: (res) => this.workflowRuns.set(res.data),
+      error: () => {}
+    });
+  }
+
+  scoreColor(s: number) { return s >= 75 ? 'var(--success)' : s >= 50 ? 'var(--warning)' : 'var(--danger)'; }
+  scoreRingClass(s: number) { return s >= 75 ? 'high' : s >= 50 ? 'mid' : 'low'; }
+  runIcon(conclusion: string) { return conclusion === 'success' ? '✅' : conclusion === 'failure' ? '❌' : '🔄'; }
+  conclusionBadge(c: string) { return c === 'success' ? 'badge-success' : c === 'failure' ? 'badge-danger' : 'badge-gray'; }
+}

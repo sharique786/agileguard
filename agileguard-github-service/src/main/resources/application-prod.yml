@@ -1,0 +1,33 @@
+# ============================================================
+# AgileGuard — GitHub Service  |  PRODUCTION environment
+# Activated by: -Dspring.profiles.active=prod
+#
+# GitHub: GitHub App (preferred over PAT in prod) or a
+#         machine-account PAT stored in GCP Secret Manager.
+#         Timeouts increased for large repo API responses.
+# ============================================================
+server:
+  port: 8084
+  forward-headers-strategy: framework
+
+agileguard:
+  github:
+    use-mock: false
+    token: ${GITHUB_TOKEN}                  # GCP Secret Manager
+    api-base-url: https://api.github.com
+    connect-timeout-seconds: 15
+    read-timeout-seconds: 60
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: WARN
+    com.agileguard: INFO

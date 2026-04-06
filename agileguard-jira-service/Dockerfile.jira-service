@@ -1,0 +1,29 @@
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /workspace
+
+COPY pom.xml                                    ./pom.xml
+COPY agileguard-common/pom.xml                  ./agileguard-common/pom.xml
+COPY agileguard-common/src                      ./agileguard-common/src
+COPY agileguard-jira-service/pom.xml            ./agileguard-jira-service/pom.xml
+COPY agileguard-jira-service/src                ./agileguard-jira-service/src
+
+RUN mvn -pl agileguard-common,agileguard-jira-service \
+        -am clean package -DskipTests -q
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+RUN addgroup -S agileguard && adduser -S agileguard -G agileguard
+USER agileguard
+
+COPY --from=build /workspace/agileguard-jira-service/target/*.jar app.jar
+
+ENV SPRING_PROFILES_ACTIVE=local
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+
+EXPOSE 8082
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8082/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

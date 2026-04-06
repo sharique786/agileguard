@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: agileguard-ai-service
+  webflux:
+    base-path: ""
+
+server:
+  port: 8083
+
+agileguard:
+  gemini:
+    use-mock: true                 # Set false and add api-key for real Gemini AI
+    api-key: YOUR_GEMINI_API_KEY   # Get from https://aistudio.google.com/app/apikey
+    model: gemini-1.5-flash        # gemini-1.5-pro for higher quality
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.agileguard: DEBUG

@@ -1,0 +1,8 @@
+{
+  "/api": {
+    "target": "https://dev-api.agileguard.example.com",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "info"
+  }
+}

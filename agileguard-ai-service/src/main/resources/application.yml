@@ -1,0 +1,30 @@
+# ============================================================
+# AgileGuard — AI Service
+# Default / LOCAL profile  (Gemini mock — no API key needed)
+# ============================================================
+spring:
+  application:
+    name: agileguard-ai-service
+  profiles:
+    active: local
+
+server:
+  port: 8083
+
+agileguard:
+  gemini:
+    use-mock: true            # Returns realistic canned responses locally
+    api-key: LOCAL_PLACEHOLDER
+    model: gemini-1.5-flash
+    max-tokens: 1024
+    temperature: 0.3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.agileguard: DEBUG

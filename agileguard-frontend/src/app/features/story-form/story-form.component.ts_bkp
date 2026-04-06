@@ -1,0 +1,264 @@
+import { Component, signal, OnDestroy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { AiService } from '../../core/services/ai.service';
+import { ValidationResult, ValidationIssue } from '../../core/models';
+
+/**
+ * AI-assisted JIRA story creation form.
+ * Debounces input changes and calls Gemini AI for real-time validation.
+ * Enforces mandatory fields and shows AI suggestions inline.
+ */
+@Component({
+  selector: 'app-story-form',
+  standalone: true,
+  imports: [CommonModule, ReactiveFormsModule],
+  template: `
+    <div>
+      <div class="page-header">
+        <h1 class="page-title">📝 Story Editor</h1>
+        <p class="page-subtitle">Create JIRA stories with AI-powered quality validation</p>
+      </div>
+
+      <div class="grid-2" style="align-items:start">
+        <!-- Story Form -->
+        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+          <div class="card">
+            <div class="card-title">Story Details</div>
+
+            <div class="form-group">
+              <label class="form-label required">Issue Type</label>
+              <select class="form-control" formControlName="issueType">
+                <option value="Story">Story</option>
+                <option value="Bug">Bug</option>
+                <option value="Task">Task</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">Summary / Title</label>
+              <input type="text" class="form-control" formControlName="title"
+                     [class.error]="f['title'].invalid && f['title'].touched"
+                     placeholder="As a user, I want to...">
+              <div class="form-error" *ngIf="f['title'].invalid && f['title'].touched">
+                Story title is required
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">
+                Description
+                <span class="text-secondary text-xs" style="font-weight:400"> (What & Why, not How)</span>
+              </label>
+              <textarea class="form-control" formControlName="description" rows="4"
+                        [class.error]="f['description'].invalid && f['description'].touched"
+                        placeholder="As a [user type], I want [goal] so that [benefit]..."></textarea>
+              <div class="form-error" *ngIf="f['description'].invalid && f['description'].touched">
+                Description is required (min 20 characters)
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">
+                Acceptance Criteria
+                <button type="button" class="btn btn-secondary btn-sm" style="margin-left:8px;font-size:12px"
+                        (click)="generateAC()" [disabled]="generatingAC()">
+                  {{ generatingAC() ? '⏳ Generating...' : '✨ Generate with AI' }}
+                </button>
+              </label>
+              <textarea class="form-control" formControlName="acceptanceCriteria" rows="5"
+                        [class.error]="f['acceptanceCriteria'].invalid && f['acceptanceCriteria'].touched"
+                        placeholder="Given [context],&#10;When [action],&#10;Then [expected outcome]"></textarea>
+              <div class="form-error" *ngIf="f['acceptanceCriteria'].invalid && f['acceptanceCriteria'].touched">
+                Acceptance Criteria is required
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Story Points</label>
+              <select class="form-control" formControlName="storyPoints">
+                <option value="">— Not estimated —</option>
+                <option *ngFor="let p of [1,2,3,5,8,13]" [value]="p">{{ p }}</option>
+              </select>
+            </div>
+
+            <!-- Submit -->
+            <div class="flex gap-8" style="margin-top:8px">
+              <button type="submit" class="btn btn-primary flex-1" style="justify-content:center"
+                      [disabled]="saving() || form.invalid">
+                {{ saving() ? 'Saving...' : '💾 Save Story' }}
+              </button>
+              <button type="button" class="btn btn-secondary" (click)="runValidation()">
+                🤖 Full AI Review
+              </button>
+            </div>
+
+            <div class="alert alert-success mt-16" *ngIf="saveSuccess()">
+              ✅ Story saved successfully!
+            </div>
+          </div>
+        </form>
+
+        <!-- AI Panel -->
+        <div>
+          <div class="ai-panel mb-16">
+            <div class="ai-panel-header">
+              <span>🤖</span> Gemini AI Assistant
+              <span *ngIf="aiLoading()" class="spinner" style="width:16px;height:16px;margin-left:auto"></span>
+            </div>
+
+            <!-- Score -->
+            <div *ngIf="validation()" class="flex items-center gap-16 mb-16">
+              <div class="score-ring" [ngClass]="getScoreClass(validation()!.qualityScore)">
+                {{ validation()!.qualityScore }}
+              </div>
+              <div>
+                <div style="font-weight:600;font-size:14px">Quality Score</div>
+                <div style="font-size:13px;color:var(--text-secondary)">{{ validation()!.summary }}</div>
+              </div>
+            </div>
+
+            <div *ngIf="!validation() && !aiLoading()" style="color:var(--text-secondary);font-size:13px">
+              Start typing your story details — AI analysis will appear here automatically.
+            </div>
+
+            <!-- AI Issues -->
+            <div *ngIf="validation()?.issues?.length">
+              <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">Issues Found</div>
+              <div *ngFor="let issue of validation()!.issues" class="gap-item" [ngClass]="issue.severity">
+                <span class="gap-severity" [ngClass]="issue.severity">{{ issue.severity }}</span>
+                <div style="font-size:13px">{{ issue.message }}</div>
+              </div>
+            </div>
+
+            <!-- AC Suggestions -->
+            <div *ngIf="validation()?.suggestions?.acceptanceCriteria?.length" style="margin-top:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">
+                Suggested AC
+                <button class="btn btn-secondary btn-sm" style="font-size:11px;margin-left:8px"
+                        (click)="applyAcSuggestions()">Apply</button>
+              </div>
+              <div *ngFor="let ac of validation()!.suggestions.acceptanceCriteria" class="ai-suggestion">
+                {{ ac }}
+              </div>
+            </div>
+
+            <div *ngIf="validation()?.suggestions?.estimationHint" class="alert alert-info" style="margin-top:12px;font-size:13px">
+              💡 {{ validation()!.suggestions!.estimationHint }}
+            </div>
+          </div>
+
+          <!-- Mandatory fields checklist -->
+          <div class="card">
+            <div class="card-title">Completion Checklist</div>
+            <div *ngFor="let item of checklist()" class="flex items-center gap-8 mb-8">
+              <span style="font-size:16px">{{ item.done ? '✅' : '❌' }}</span>
+              <span style="font-size:13px" [style.color]="item.done ? 'var(--success)' : 'var(--danger)'">
+                {{ item.label }}
+              </span>
+              <span *ngIf="!item.done" class="badge badge-danger" style="margin-left:auto;font-size:10px">REQUIRED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+})
+export class StoryFormComponent implements OnDestroy {
+  form: FormGroup;
+  validation = signal<ValidationResult | null>(null);
+  aiLoading = signal(false);
+  saving = signal(false);
+  generatingAC = signal(false);
+  saveSuccess = signal(false);
+
+  private destroy$ = new Subject<void>();
+  private validate$ = new Subject<void>();
+
+  constructor(private fb: FormBuilder, private aiService: AiService) {
+    this.form = this.fb.group({
+      issueType:           ['Story'],
+      title:               ['', [Validators.required, Validators.minLength(5)]],
+      description:         ['', [Validators.required, Validators.minLength(20)]],
+      acceptanceCriteria:  ['', Validators.required],
+      storyPoints:         ['']
+    });
+
+    // Debounce AI validation: triggers 1.2s after user stops typing
+    this.validate$.pipe(
+      debounceTime(1200),
+      distinctUntilChanged(),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.runValidation());
+
+    this.form.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => { if (this.form.value.title?.length > 3) this.validate$.next(); });
+  }
+
+  get f() { return this.form.controls; }
+
+  runValidation(): void {
+    const v = this.form.value;
+    if (!v.title) return;
+    this.aiLoading.set(true);
+    this.aiService.validate({
+      title: v.title, description: v.description,
+      acceptanceCriteria: v.acceptanceCriteria,
+      issueType: v.issueType, storyPoints: v.storyPoints
+    }).subscribe({
+      next: (res) => { this.validation.set(res.data); this.aiLoading.set(false); },
+      error: () => this.aiLoading.set(false)
+    });
+  }
+
+  generateAC(): void {
+    const v = this.form.value;
+    if (!v.title) return;
+    this.generatingAC.set(true);
+    this.aiService.generateAC(v.title, v.description).subscribe({
+      next: (res) => {
+        this.form.patchValue({ acceptanceCriteria: res.data.join('\n\n') });
+        this.generatingAC.set(false);
+      },
+      error: () => this.generatingAC.set(false)
+    });
+  }
+
+  applyAcSuggestions(): void {
+    const suggestions = this.validation()?.suggestions?.acceptanceCriteria;
+    if (suggestions?.length) {
+      this.form.patchValue({ acceptanceCriteria: suggestions.join('\n\n') });
+    }
+  }
+
+  onSubmit(): void {
+    if (this.form.invalid) { this.form.markAllAsTouched(); return; }
+    this.saving.set(true);
+    // In a real app, call JIRA service to create the issue
+    setTimeout(() => {
+      this.saving.set(false);
+      this.saveSuccess.set(true);
+      setTimeout(() => this.saveSuccess.set(false), 3000);
+    }, 1000);
+  }
+
+  checklist() {
+    const v = this.form.value;
+    return [
+      { label: 'Story title', done: v.title?.length >= 5 },
+      { label: 'Description (20+ chars)', done: v.description?.length >= 20 },
+      { label: 'Acceptance Criteria', done: !!v.acceptanceCriteria },
+      { label: 'Story points estimated', done: !!v.storyPoints },
+      { label: 'AI score ≥ 60', done: (this.validation()?.qualityScore ?? 0) >= 60 }
+    ];
+  }
+
+  getScoreClass(score: number): string {
+    if (score >= 75) return 'high';
+    if (score >= 50) return 'mid';
+    return 'low';
+  }
+
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+}

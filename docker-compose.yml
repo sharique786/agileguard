@@ -1,0 +1,175 @@
+# =============================================================================
+# AgileGuard — Docker Compose (local development)
+#
+# Usage:
+#   docker compose up --build          # first run
+#   docker compose up -d               # background
+#   docker compose down                # stop and remove containers
+#   docker compose logs -f gateway     # tail a single service
+#   docker compose restart jira        # restart one service after code change
+#
+# All services start with SPRING_PROFILES_ACTIVE=local so they use:
+#   - H2 in-memory databases (no PostgreSQL needed)
+#   - Mock JIRA, Gemini AI, and GitHub clients
+#   - Pre-seeded demo users (admin@acme.com / Admin@1234)
+#
+# To connect real APIs, override the environment variables below or
+# create a .env file at the same level as this file.
+# =============================================================================
+
+name: agileguard
+
+# ── Shared network ─────────────────────────────────────────────────────────
+networks:
+  agileguard-net:
+    driver: bridge
+
+# ── Named volumes (persist H2 data across container restarts for dev) ─────
+volumes:
+  auth-data:
+  jira-data:
+
+services:
+
+  # ── Auth Service ────────────────────────────────────────────────────────
+  auth:
+    build:
+      context: .
+      dockerfile: agileguard-auth-service/Dockerfile
+    image: agileguard/auth-service:local
+    container_name: agileguard-auth
+    networks: [agileguard-net]
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      # JWT secret — must match the gateway's AGILEGUARD_JWT_SECRET
+      AGILEGUARD_JWT_SECRET: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBhZ2lsZWd1YXJkIGp3dCBzaWduaW5n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── JIRA Service ────────────────────────────────────────────────────────
+  jira:
+    build:
+      context: .
+      dockerfile: agileguard-jira-service/Dockerfile
+    image: agileguard/jira-service:local
+    container_name: agileguard-jira
+    networks: [agileguard-net]
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      # Uncomment and fill to connect to real JIRA:
+      # JIRA_USE_MOCK: "false"
+      # JIRA_BASE_URL: https://your-org.atlassian.net
+      # JIRA_USER_EMAIL: svc@yourcompany.com
+      # JIRA_API_TOKEN: ATATT3x...
+      # JIRA_SCAN_PROJECTS: PLAT
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── AI Service ──────────────────────────────────────────────────────────
+  ai:
+    build:
+      context: .
+      dockerfile: agileguard-ai-service/Dockerfile
+    image: agileguard/ai-service:local
+    container_name: agileguard-ai
+    networks: [agileguard-net]
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      # Uncomment to connect to real Gemini:
+      # GEMINI_USE_MOCK: "false"
+      # GEMINI_API_KEY: AIzaSy...
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── GitHub Service ──────────────────────────────────────────────────────
+  github:
+    build:
+      context: .
+      dockerfile: agileguard-github-service/Dockerfile
+    image: agileguard/github-service:local
+    container_name: agileguard-github
+    networks: [agileguard-net]
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      # Uncomment to connect to real GitHub:
+      # GITHUB_USE_MOCK: "false"
+      # GITHUB_TOKEN: ghp_...
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── API Gateway ─────────────────────────────────────────────────────────
+  # Must start AFTER all backend services are healthy.
+  gateway:
+    build:
+      context: .
+      dockerfile: agileguard-gateway/Dockerfile
+    image: agileguard/gateway:local
+    container_name: agileguard-gateway
+    networks: [agileguard-net]
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth:   { condition: service_healthy }
+      jira:   { condition: service_healthy }
+      ai:     { condition: service_healthy }
+      github: { condition: service_healthy }
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      AGILEGUARD_JWT_SECRET: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBhZ2lsZWd1YXJkIGp3dCBzaWduaW5n
+      # Gateway routes point to internal Docker service names
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://auth:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://jira:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://ai:8083
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://github:8084
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # ── Angular Frontend ────────────────────────────────────────────────────
+  # Nginx serves the pre-built Angular bundle and proxies /api to the gateway.
+  frontend:
+    build:
+      context: agileguard-frontend
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: production    # uses environment.prod.ts which points apiUrl to /api
+    image: agileguard/frontend:local
+    container_name: agileguard-frontend
+    networks: [agileguard-net]
+    ports:
+      - "4200:80"
+    depends_on:
+      gateway: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

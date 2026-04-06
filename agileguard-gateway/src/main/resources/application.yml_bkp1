@@ -1,0 +1,65 @@
+# ============================================================
+# AgileGuard — API Gateway
+# Default / LOCAL profile
+# Activated by: java -jar gateway.jar
+#               (spring.profiles.active defaults to "local")
+# ============================================================
+spring:
+  application:
+    name: agileguard-gateway
+  main:
+    web-application-type: reactive
+  profiles:
+    active: local     # overridden by -Dspring.profiles.active=dev|uat|prod
+
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:4200"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates: [Path=/api/auth/**] #[Path=/api/auth/**, /api/tenants/**, /api/projects/**]
+          filters: [StripPrefix=0]
+        - id: jira-service
+          uri: http://localhost:8082
+          predicates: [Path=/api/jira/**]
+          filters: [StripPrefix=0]
+        - id: ai-service
+          uri: http://localhost:8083
+          predicates: [Path=/api/ai/**]
+          filters: [StripPrefix=0]
+        - id: github-service
+          uri: http://localhost:8084
+          predicates: [Path=/api/github/**]
+          filters: [StripPrefix=0]
+
+server:
+  port: 8080
+
+agileguard:
+  jwt:
+    # LOCAL dev secret — NEVER use this value in any deployed environment
+    secret: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBhZ2lsZWd1YXJkIGp3dCBzaWduaW5n
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.agileguard: DEBUG
+    org.springframework.cloud.gateway: INFO

@@ -1,0 +1,28 @@
+# ============================================================
+# AgileGuard — AI Service  |  DEVELOPMENT environment
+# Activated by: -Dspring.profiles.active=dev
+#
+# Gemini: Connected to real Gemini API using the dev project
+#         API key. Set GEMINI_USE_MOCK=false in dev env vars
+#         to switch from mock to real AI.
+# ============================================================
+server:
+  port: 8083
+
+agileguard:
+  gemini:
+    use-mock: ${GEMINI_USE_MOCK:false}    # false = real Gemini in dev
+    api-key: ${GEMINI_API_KEY}            # Set in dev secrets / .env file
+    model: ${GEMINI_MODEL:gemini-1.5-flash}
+    max-tokens: 1024
+    temperature: 0.3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.agileguard: DEBUG

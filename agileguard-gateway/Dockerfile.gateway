@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────
+# Stage 1 — Build
+# ─────────────────────────────────────────────────────────────
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /workspace
+
+# Copy parent POM and common module first so Maven can resolve them
+COPY pom.xml                            ./pom.xml
+COPY agileguard-common/pom.xml          ./agileguard-common/pom.xml
+COPY agileguard-common/src              ./agileguard-common/src
+
+# Copy this service
+COPY agileguard-gateway/pom.xml         ./agileguard-gateway/pom.xml
+COPY agileguard-gateway/src             ./agileguard-gateway/src
+
+# Build (skip tests — tests run in CI, not during image build)
+RUN mvn -pl agileguard-common,agileguard-gateway \
+        -am clean package -DskipTests -q
+
+# ─────────────────────────────────────────────────────────────
+# Stage 2 — Runtime (distroless for minimal attack surface)
+# ─────────────────────────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+# Non-root user for security
+RUN addgroup -S agileguard && adduser -S agileguard -G agileguard
+USER agileguard
+
+COPY --from=build /workspace/agileguard-gateway/target/*.jar app.jar
+
+# Spring profile is injected via SPRING_PROFILES_ACTIVE env var
+# Defaults to 'local' for safety
+ENV SPRING_PROFILES_ACTIVE=local
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
