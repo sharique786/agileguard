@@ -73,7 +73,7 @@ export class JiraService {
       `${this.base}/users`, { params: new HttpParams().set('q', q) });
   }
 
-  /** Resolves an epic key (e.g. "PLAT-5") to its name and status. */
+  /** Resolves an epic key (e.g. "COMMSSURV-5") to its name and status. */
   getEpic(epicKey: string): Observable<ApiResponse<JiraEpic>> {
     return this.http.get<ApiResponse<JiraEpic>>(`${this.base}/epics/${epicKey}`);
   }
@@ -82,27 +82,4 @@ export class JiraService {
   createIssue(request: CreateIssueRequest): Observable<ApiResponse<JiraIssue>> {
     return this.http.post<ApiResponse<JiraIssue>>(`${this.base}/issues/create`, request);
   }
-
-  // ── SAFe Sprint Report ─────────────────────────────────────────────────────
-
-    /** Generates the full SAFe sprint report for all feature teams. */
-    getSprintReport(
-      projectKey: string,
-      sprintId?: number,
-      pi?: string
-    ): Observable<ApiResponse<any>> {
-      let params = new HttpParams().set('projectKey', projectKey);
-      if (sprintId) params = params.set('sprintId', sprintId.toString());
-      if (pi)       params = params.set('pi', pi);
-      return this.http.get<ApiResponse<any>>(`${this.base}/sprint-report`, { params });
-    }
-
-    /** Returns all sprints for the sprint-selector dropdown. */
-    getSprintsForReport(projectKey: string): Observable<ApiResponse<any[]>> {
-      return this.http.get<ApiResponse<any[]>>(
-        `${this.base}/sprint-report/sprints`,
-        { params: new HttpParams().set('projectKey', projectKey) });
-    }
 }
-
-
