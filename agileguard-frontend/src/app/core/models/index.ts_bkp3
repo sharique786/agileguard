@@ -4,7 +4,7 @@ export interface AuthResponse { accessToken: string; refreshToken: string; token
 export interface Tenant { id: string; name: string; slug: string; plan: string; active: boolean; jiraBaseUrl?: string; jiraUserEmail?: string; jiraApiToken?: string; }
 export interface ProjectTeam { id: string; tenantId: string; name: string; jiraProjectKey: string; githubOrg: string; }
 export interface FeatureTeam { id: string; projectTeamId: string; name: string; jiraComponent: string; githubRepos?: string; }
-export interface JiraIssue { id: string; key: string; summary: string; description: string; acceptanceCriteria: string; issueType: string; status: string; storyPoints: number; assigneeName: string; timeSpentMinutes: number; statusChangedAt: string; subTasks: SubTask[]; linkedPullRequests: string[]; projectKey: string; priority?: string; }
+export interface JiraIssue { id: string; key: string; summary: string; description: string; acceptanceCriteria: string; issueType: string; status: string; storyPoints: number; assigneeName: string; timeSpentMinutes: number; statusChangedAt: string; subTasks: SubTask[]; linkedPullRequests: string[]; projectKey: string; }
 export interface SubTask { id: string; key: string; type: string; status: string; summary: string; }
 export interface GapFinding { issueKey: string; type: string; severity: string; message: string; suggestedAction: string; detectedAt: string; }
 export interface GapReport { issueKey: string; issueSummary: string; qualityScore: number; flagged: boolean; findings: GapFinding[]; criticalCount: number; errorCount: number; warningCount: number; }
@@ -148,57 +148,4 @@ export interface PiSprintReport {
   totalCapacityActual:     number;
   teamReports:             TeamSprintReport[];
   generatedAt:             string;
-}
-
-// ─── Story Editor Enhanced Modes ──────────────────────────────────────────────
-export interface EpicGenerationRequest {
-  epicTitle: string; epicDescription: string; epicKey?: string;
-  projectKey?: string; businessLine?: string; priority?: string;
-  sprintName?: string; sprintId?: number;
-  numberOfDevelopers: number; numberOfQaEngineers: number;
-  developerBandwidthSp?: number;
-  components?: string[]; fixVersions?: string[]; teamNames?: string[];
-  reporterName?: string;
-}
-
-export interface GeneratedStory {
-  storyIndex: number; title: string; description: string;
-  acceptanceCriteria: string; issueType: string; priority: string;
-  businessLine: string; storyPoints: number; epicLink: string;
-  sprintName: string; sprintId?: number; suggestedAssigneeRole: string;
-  rationale: string; components: string[]; fixVersions: string[];
-  labels: string[]; teamNames: string[];
-}
-
-export interface EpicGenerationResponse {
-  epicTitle: string; epicKey: string; epicAnalysis: string;
-  totalEstimatedPoints: number; estimatedSprints: number;
-  developerStoryCount: number; qaStoryCount: number;
-  recommendations: string; stories: GeneratedStory[]; disclaimer: string;
-}
-
-export interface EpicContextRequest {
-  epicKey: string; epicName: string; epicDescription: string;
-  storyTitle: string; storyDescription?: string;
-  businessLine?: string; issueType?: string;
-  existingStorySummaries?: string[];
-}
-
-export interface StoryEnhancementRequest {
-  issueKey: string; title: string; description: string;
-  acceptanceCriteria: string; issueType: string; status?: string;
-  storyPoints?: number; priority?: string; businessLine?: string;
-  epicLink?: string; epicName?: string; epicDescription?: string;
-  components?: string[]; labels?: string[]; teamNames?: string[];
-  fixVersions?: string[]; existingGapMessages?: string[];
-}
-
-export interface StoryEnhancementResponse {
-  issueKey: string; qualityScore: number; improvedScore: number;
-  summaryAssessment: string; improvedTitle: string;
-  improvedDescription: string; improvedAcceptanceCriteria: string[];
-  suggestedStoryPoints?: number; storyPointRationale: string;
-  epicContextInsight: string; missingScenarios: string[];
-  issues: { severity: string; field: string; problem: string; suggestion: string; }[];
-  disclaimer: string;
 }

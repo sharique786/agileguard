@@ -30,23 +30,4 @@ export class AiService {
     es.onerror = () => { subject.complete(); es.close(); };
     return subject.asObservable();
   }
-
-  // ── Enhanced Story Editor Mode endpoints ────────────────────────────────
-
-    /** Mode A — Generate stories from epic description. */
-    generateStoriesFromEpic(req: any): Observable<ApiResponse<any>> {
-      return this.http.post<ApiResponse<any>>(`${this.base}/epic/generate`, req);
-    }
-
-    /** Mode B — Suggest AC for new story based on epic context. */
-    suggestAcFromEpicContext(req: any): Observable<ApiResponse<string[]>> {
-      return this.http.post<ApiResponse<string[]>>(`${this.base}/story/suggest-ac`, req);
-    }
-
-    /** Mode C — Suggest enhancements for an existing story. */
-    suggestEnhancements(req: any): Observable<ApiResponse<any>> {
-      return this.http.post<ApiResponse<any>>(`${this.base}/story/suggest-enhancements`, req);
-    }
 }
-
-

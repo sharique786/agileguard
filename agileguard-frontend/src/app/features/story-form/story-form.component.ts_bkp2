@@ -1,0 +1,1287 @@
+import { Component, signal, computed, OnDestroy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import {
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  FormsModule,
+  Validators
+} from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { AiService }            from '../../core/services/ai.service';
+import { JiraService }          from '../../core/services/jira.service';
+import { TypeaheadComponent }   from '../../shared/components/typeahead.component';
+import { TagInputComponent }    from '../../shared/components/tag-input.component';
+import {
+  ValidationResult, JiraSprint, JiraUser, JiraEpic,
+  GeneratedStory, StoryEnhancementResponse
+} from '../../core/models';
+
+const DEFAULT_PROJECT = 'PLAT';
+
+/**
+ * Enhanced Story Editor — three modes:
+ *
+ *   🏗 Create Epic   — plain-English epic → AI decomposes into stories per developer
+ *   📝 Create Story  — new story form with AI AC suggestion from epic context
+ *   ✏️ Update Story  — fetch existing story → AI enhancement + gap suggestions
+ *
+ * All AI panels show the hallucination disclaimer.
+ */
+@Component({
+  selector: 'app-story-form',
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    TypeaheadComponent,
+    TagInputComponent
+  ],
+  template: `
+  <div>
+    <!-- ── Page Header ─────────────────────────────────────────────── -->
+    <div class="page-header">
+      <h1 class="page-title">📝 Story Editor</h1>
+      <p class="page-subtitle">
+        Create epics, write stories, and update existing issues with AI assistance
+        <span class="badge badge-info" style="margin-left:8px">{{ projectKey }}</span>
+      </p>
+    </div>
+
+    <!-- ── Mode Selector ──────────────────────────────────────────── -->
+    <div class="mode-selector mb-24">
+      <button *ngFor="let m of modes"
+              class="mode-btn"
+              [class.mode-btn-active]="activeMode() === m.key"
+              (click)="setMode(m.key)">
+        <span class="mode-icon">{{ m.icon }}</span>
+        <div>
+          <div class="mode-label">{{ m.label }}</div>
+          <div class="mode-sub">{{ m.desc }}</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MODE A — CREATE EPIC
+         ══════════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="activeMode() === 'epic'">
+      <div style="display:grid;grid-template-columns:1fr 400px;gap:24px;align-items:start">
+
+        <!-- Left: Epic form -->
+        <form [formGroup]="epicForm" (ngSubmit)="generateEpic()">
+          <div class="card mb-16">
+            <div class="section-head">🏗 Epic Details</div>
+
+            <div class="form-group">
+              <label class="form-label required">Epic Title</label>
+              <input class="form-control" formControlName="epicTitle"
+                     [class.error]="isInvalid(epicForm,'epicTitle')"
+                     placeholder="e.g. Payments Gateway v2 — Multi-currency support">
+              <div class="form-error" *ngIf="isInvalid(epicForm,'epicTitle')">Epic title is required</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">
+                Epic Description
+                <span class="text-muted text-xs" style="font-weight:400">
+                  — write in plain English, as detailed as possible
+                </span>
+              </label>
+              <textarea class="form-control" formControlName="epicDescription" rows="6"
+                        [class.error]="isInvalid(epicForm,'epicDescription')"
+                        placeholder="Describe the full scope of this epic in plain English. Include: business goal, users affected, key features, technical constraints, and any non-functional requirements (performance, security, etc.)..."></textarea>
+              <div class="form-error" *ngIf="isInvalid(epicForm,'epicDescription')">
+                Description is required (min 30 characters)
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Existing Epic Key (if created in JIRA)</label>
+              <input class="form-control" formControlName="epicKey"
+                     placeholder="PLAT-10" style="font-family:monospace;text-transform:uppercase"
+                     (input)="uppercaseInput($event, epicForm, 'epicKey')">
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="form-group">
+                <label class="form-label required">Business Line</label>
+                <select class="form-control" formControlName="businessLine">
+                  <option value="">— Select —</option>
+                  <option *ngFor="let b of businessLines" [value]="b.value">{{ b.label }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Priority</label>
+                <select class="form-control" formControlName="priority">
+                  <option value="">— Select —</option>
+                  <option *ngFor="let p of priorities" [value]="p.value">{{ p.icon }} {{ p.label }}</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Sprint typeahead -->
+            <div class="form-group">
+              <app-typeahead label="Target Sprint" displayKey="name"
+                hint="stories will be assigned to this sprint"
+                placeholder="Search sprints…"
+                [items]="sprintSuggestions()" [loading]="sprintsLoading()"
+                (queryChange)="onSprintQuery($event)"
+                (selected)="onEpicSprintSelected($event)">
+              </app-typeahead>
+            </div>
+          </div>
+
+          <div class="card mb-16">
+            <div class="section-head">👥 Team Configuration</div>
+            <p class="text-sm text-secondary mb-16">
+              AI will size and distribute stories based on your team's composition and bandwidth.
+            </p>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+              <div class="form-group">
+                <label class="form-label required">No. of Developers</label>
+                <input type="number" class="form-control" formControlName="numberOfDevelopers"
+                       min="1" max="20" placeholder="3">
+              </div>
+              <div class="form-group">
+                <label class="form-label required">No. of QA Engineers</label>
+                <input type="number" class="form-control" formControlName="numberOfQaEngineers"
+                       min="0" max="10" placeholder="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  Dev Bandwidth (SP/sprint)
+                  <span class="text-muted text-xs" style="font-weight:400">per developer</span>
+                </label>
+                <input type="number" class="form-control" formControlName="developerBandwidthSp"
+                       min="1" max="21" placeholder="8">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Team Names</label>
+              <div class="team-grid">
+                <label *ngFor="let t of teamOptions" class="team-option"
+                       [class.selected]="epicSelectedTeams().includes(t)">
+                  <input type="checkbox" style="margin-right:6px"
+                         [checked]="epicSelectedTeams().includes(t)"
+                         (change)="toggleEpicTeam(t)">{{ t }}
+                </label>
+              </div>
+            </div>
+
+            <!-- Components and Fix Versions -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="form-group">
+                <app-typeahead label="Component/s" mode="multi" displayKey="name"
+                  placeholder="Search components…"
+                  [items]="componentSuggestions()" [loading]="componentsLoading()"
+                  (queryChange)="onComponentQuery($event)"
+                  (multiSelected)="epicSelectedComponents.set($event)">
+                </app-typeahead>
+              </div>
+              <div class="form-group">
+                <app-typeahead label="Fix Version/s" mode="multi" displayKey="name"
+                  placeholder="Search versions…"
+                  [items]="versionSuggestions()" [loading]="versionsLoading()"
+                  (queryChange)="onVersionQuery($event)"
+                  (multiSelected)="epicSelectedVersions.set($event)">
+                </app-typeahead>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary"
+                  [disabled]="epicForm.invalid || epicGenerating()"
+                  style="width:100%;justify-content:center">
+            <span *ngIf="epicGenerating()" class="spinner" style="width:18px;height:18px"></span>
+            {{ epicGenerating() ? '🤖 AI is decomposing your epic…' : '🚀 Generate Stories with AI' }}
+          </button>
+        </form>
+
+        <!-- Right: AI results + disclaimer -->
+        <div>
+          <!-- Disclaimer (always visible in epic mode) -->
+          <div class="ai-disclaimer mb-16">
+            <div class="disclaimer-header">⚠️ Important — AI Disclaimer</div>
+            <p>Stories are generated by a Large Language Model (Google Gemini). LLMs can <strong>hallucinate</strong> — they may produce plausible-sounding but inaccurate or incomplete content. All generated stories, acceptance criteria, and estimates <strong>must be reviewed and approved</strong> by your team before use.</p>
+          </div>
+
+          <!-- Epic summary card -->
+          <div class="card mb-16" *ngIf="epicResult()">
+            <div class="card-title">📊 Epic Analysis</div>
+            <p class="text-sm" style="margin-bottom:12px">{{ epicResult()!.epicAnalysis }}</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div class="metric-mini"><div class="metric-mini-val">{{ epicResult()!.totalEstimatedPoints }}</div><div class="metric-mini-lbl">Total Story Points</div></div>
+              <div class="metric-mini"><div class="metric-mini-val">{{ epicResult()!.estimatedSprints }}</div><div class="metric-mini-lbl">Estimated Sprints</div></div>
+              <div class="metric-mini"><div class="metric-mini-val">{{ epicResult()!.developerStoryCount }}</div><div class="metric-mini-lbl">Dev Stories</div></div>
+              <div class="metric-mini"><div class="metric-mini-val">{{ epicResult()!.qaStoryCount }}</div><div class="metric-mini-lbl">QA Stories</div></div>
+            </div>
+            <div *ngIf="epicResult()!.recommendations" class="alert alert-info" style="font-size:12px">
+              💡 {{ epicResult()!.recommendations }}
+            </div>
+          </div>
+
+          <div *ngIf="!epicResult() && !epicGenerating()"
+               style="text-align:center;padding:40px;color:var(--text-muted)">
+            <div style="font-size:40px;margin-bottom:8px">🏗</div>
+            Fill in the epic details and click Generate to create stories.
+          </div>
+        </div>
+      </div>
+
+      <!-- Generated stories list -->
+      <div *ngIf="epicResult() as er" class="mt-24">
+        <h2 class="section-head" style="font-size:16px;margin-bottom:16px">
+          📋 Generated Stories ({{ er.stories.length }})
+          <span class="text-sm text-muted" style="font-weight:400;margin-left:8px">
+            Review each story before creating in JIRA
+          </span>
+        </h2>
+
+        <div *ngFor="let story of er.stories; let i = index"
+             class="generated-story-card mb-12">
+          <div class="generated-story-header">
+            <div class="flex items-center gap-10">
+              <span class="story-index-badge">{{ story.storyIndex }}</span>
+              <span class="badge" [ngClass]="story.suggestedAssigneeRole === 'QA' ? 'badge-warning' : 'badge-info'">
+                {{ story.suggestedAssigneeRole }}
+              </span>
+              <span class="badge badge-gray">{{ story.storyPoints }} SP</span>
+              <span class="story-title">{{ story.title }}</span>
+            </div>
+            <button class="btn btn-secondary btn-sm"
+                    (click)="createStoryFromGenerated(story)">
+              ➕ Create in JIRA
+            </button>
+          </div>
+          <div class="generated-story-body" *ngIf="expandedGenerated().has(i)"
+               [@expandCollapse]>
+            <div class="detail-label">Description</div>
+            <p class="text-sm">{{ story.description }}</p>
+            <div class="detail-label mt-8">Acceptance Criteria</div>
+            <pre class="ac-pre">{{ story.acceptanceCriteria }}</pre>
+            <div class="detail-label mt-8">Rationale</div>
+            <p class="text-sm text-secondary">{{ story.rationale }}</p>
+          </div>
+          <button class="expand-btn" (click)="toggleGeneratedExpand(i)">
+            {{ expandedGenerated().has(i) ? '▲ Collapse' : '▼ View Details' }}
+          </button>
+        </div>
+
+        <div class="alert alert-warning mt-16" style="font-size:13px">
+          {{ er.disclaimer }}
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MODE B — CREATE STORY
+         ══════════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="activeMode() === 'create'">
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start">
+
+        <form [formGroup]="storyForm" (ngSubmit)="submitStory()">
+
+          <!-- Classification -->
+          <div class="card mb-16">
+            <div class="section-head">📋 Classification</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+              <div class="form-group">
+                <label class="form-label required">Issue Type</label>
+                <select class="form-control" formControlName="issueType">
+                  <option value="Story">Story</option>
+                  <option value="Bug">Bug</option>
+                  <option value="Task">Task</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Priority</label>
+                <select class="form-control" formControlName="priority"
+                        [class.error]="isInvalid(storyForm,'priority')">
+                  <option value="">— Select —</option>
+                  <option *ngFor="let p of priorities" [value]="p.value">{{ p.icon }} {{ p.label }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Business Line</label>
+                <select class="form-control" formControlName="businessLine"
+                        [class.error]="isInvalid(storyForm,'businessLine')">
+                  <option value="">— Select —</option>
+                  <option *ngFor="let b of businessLines" [value]="b.value">{{ b.label }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Details -->
+          <div class="card mb-16">
+            <div class="section-head">✍️ Story Details</div>
+            <div class="form-group">
+              <label class="form-label required">Summary / Title</label>
+              <input class="form-control" formControlName="title"
+                     [class.error]="isInvalid(storyForm,'title')"
+                     placeholder="As a user, I want to…">
+            </div>
+            <div class="form-group">
+              <label class="form-label required">Description</label>
+              <textarea class="form-control" formControlName="description" rows="4"
+                        [class.error]="isInvalid(storyForm,'description')"
+                        placeholder="As a [user type], I want [goal] so that [benefit]…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label required">
+                Acceptance Criteria
+                <button type="button" class="btn btn-secondary btn-sm" style="margin-left:8px;font-size:11px"
+                        (click)="generateAC()" [disabled]="generatingAC()">
+                  {{ generatingAC() ? '⏳ Generating…' : '✨ AI Generate' }}
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" style="margin-left:4px;font-size:11px"
+                        *ngIf="resolvedEpic()"
+                        (click)="suggestAcFromEpic()" [disabled]="suggestingAC()">
+                  {{ suggestingAC() ? '⏳ Suggesting…' : '🔗 Suggest from Epic' }}
+                </button>
+              </label>
+              <textarea class="form-control" formControlName="acceptanceCriteria" rows="5"
+                        [class.error]="isInvalid(storyForm,'acceptanceCriteria')"
+                        placeholder="Given [context],&#10;When [action],&#10;Then [expected outcome]"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="form-group">
+                <label class="form-label">Story Points</label>
+                <select class="form-control" formControlName="storyPoints">
+                  <option value="">— Not estimated —</option>
+                  <option *ngFor="let p of [1,2,3,5,8,13,21]" [value]="p">{{ p }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <app-typeahead label="Reporter" displayKey="displayName" subKey="emailAddress"
+                  placeholder="Search reporter…"
+                  [items]="userSuggestions()" [loading]="usersLoading()"
+                  (queryChange)="onUserQuery($event)"
+                  (selected)="onReporterSelected($event)">
+                </app-typeahead>
+              </div>
+            </div>
+          </div>
+
+          <!-- Planning -->
+          <div class="card mb-16">
+            <div class="section-head">📅 Planning & Metadata</div>
+            <div class="form-group">
+              <app-typeahead label="Sprint" displayKey="name"
+                placeholder="Search sprints…"
+                [items]="sprintSuggestions()" [loading]="sprintsLoading()"
+                (queryChange)="onSprintQuery($event)"
+                (selected)="onSprintSelected($event)">
+              </app-typeahead>
+            </div>
+            <!-- Epic Link -->
+            <div class="form-group">
+              <label class="form-label">
+                Epic Link
+                <span class="text-muted text-xs" style="font-weight:400"> — enter JIRA epic key</span>
+              </label>
+              <div class="flex gap-8">
+                <input class="form-control" formControlName="epicLink"
+                       style="font-family:monospace;text-transform:uppercase"
+                       placeholder="PLAT-5"
+                       (blur)="resolveEpic()"
+                       (input)="onEpicInput($event)">
+                <button type="button" class="btn btn-secondary btn-sm"
+                        [disabled]="epicLoading() || !storyForm.value.epicLink"
+                        (click)="resolveEpic()">
+                  {{ epicLoading() ? '⏳' : '🔍 Resolve' }}
+                </button>
+              </div>
+              <div *ngIf="resolvedEpic() as epic" class="epic-card mt-8">
+                <div class="epic-key">{{ epic.issueKey }}</div>
+                <div class="epic-name">{{ epic.name }}</div>
+                <span class="badge badge-purple" style="font-size:11px">Epic</span>
+                <button type="button" class="btn-icon" (click)="clearEpic()">×</button>
+              </div>
+              <div *ngIf="epicNotFound()" class="alert alert-danger"
+                   style="margin-top:6px;padding:6px 10px;font-size:12px">
+                ❌ Epic "{{ storyForm.value.epicLink }}" not found
+              </div>
+              <!-- Epic context hint -->
+              <div *ngIf="resolvedEpic()" class="alert alert-info mt-8" style="font-size:12px">
+                💡 Epic context loaded — click <strong>"Suggest from Epic"</strong> above to get
+                AI Acceptance Criteria tailored to this epic's scope.
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="form-group">
+                <app-typeahead label="Component/s" mode="multi" displayKey="name"
+                  placeholder="Search components…"
+                  [items]="componentSuggestions()" [loading]="componentsLoading()"
+                  (queryChange)="onComponentQuery($event)"
+                  (multiSelected)="storySelectedComponents.set($event)">
+                </app-typeahead>
+              </div>
+              <div class="form-group">
+                <app-typeahead label="Fix Version/s" mode="multi" displayKey="name"
+                  placeholder="Search versions…"
+                  [items]="versionSuggestions()" [loading]="versionsLoading()"
+                  (queryChange)="onVersionQuery($event)"
+                  (multiSelected)="storySelectedVersions.set($event)">
+                </app-typeahead>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <app-tag-input label="Labels" placeholder="Add a label…"
+                [tags]="selectedLabels()" (tagsChange)="selectedLabels.set($event)">
+              </app-tag-input>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Team Names</label>
+              <div class="team-grid">
+                <label *ngFor="let t of teamOptions" class="team-option"
+                       [class.selected]="storySelectedTeams().includes(t)">
+                  <input type="checkbox" style="margin-right:6px"
+                         [checked]="storySelectedTeams().includes(t)"
+                         (change)="toggleStoryTeam(t)">{{ t }}
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-8">
+            <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center"
+                    [disabled]="storyForm.invalid || storySaving()">
+              <span *ngIf="storySaving()" class="spinner" style="width:16px;height:16px"></span>
+              {{ storySaving() ? 'Saving…' : '💾 Create Story' }}
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="runValidation()">
+              🤖 AI Review
+            </button>
+          </div>
+
+          <div class="alert alert-success mt-12" *ngIf="storySavedKey()">
+            ✅ Story <strong>{{ storySavedKey() }}</strong> created!
+          </div>
+        </form>
+
+        <!-- Right: AI Panel -->
+        <div>
+          <!-- AI disclaimer — always visible -->
+          <div class="ai-disclaimer mb-16">
+            <div class="disclaimer-header">⚠️ AI Disclaimer</div>
+            <p>AI suggestions (scores, AC, improvements) are generated by Google Gemini. LLMs may <strong>hallucinate</strong>. Always review before accepting any suggestion.</p>
+          </div>
+
+          <!-- Score panel -->
+          <div class="ai-panel mb-16">
+            <div class="ai-panel-header">
+              🤖 Gemini AI Assistant
+              <span *ngIf="aiLoading()" class="spinner" style="width:15px;height:15px;margin-left:auto"></span>
+            </div>
+            <div *ngIf="validation() as v" class="flex items-center gap-16 mb-16">
+              <div class="score-ring" [ngClass]="scoreClass(v.qualityScore)">{{ v.qualityScore }}</div>
+              <div>
+                <div style="font-weight:600;font-size:14px">Quality Score</div>
+                <div style="font-size:12px;color:var(--text-secondary)">{{ v.summary }}</div>
+              </div>
+            </div>
+            <div *ngIf="!validation() && !aiLoading()" style="font-size:13px;color:var(--text-secondary)">
+              Start typing — AI analysis appears automatically.
+            </div>
+            <div *ngIf="validation()?.issues?.length">
+              <div class="field-group-label">Issues</div>
+              <div *ngFor="let i of validation()!.issues" class="gap-item" [ngClass]="i.severity">
+                <span class="gap-severity" [ngClass]="i.severity">{{ i.severity }}</span>
+                <div style="font-size:13px">{{ i.message }}</div>
+              </div>
+            </div>
+            <div *ngIf="validation()?.suggestions?.acceptanceCriteria?.length" style="margin-top:12px">
+              <div class="field-group-label">
+                AI Suggested AC
+                <button class="btn btn-secondary btn-sm" style="font-size:11px;margin-left:8px"
+                        (click)="applyAiAc()">Apply</button>
+              </div>
+              <div *ngFor="let ac of validation()!.suggestions!.acceptanceCriteria"
+                   class="ai-suggestion">{{ ac }}</div>
+            </div>
+            <div *ngIf="validation()?.suggestions?.estimationHint"
+                 class="alert alert-info" style="margin-top:10px;font-size:12px">
+              💡 {{ validation()!.suggestions!.estimationHint }}
+            </div>
+          </div>
+
+          <!-- Checklist -->
+          <div class="card">
+            <div class="card-title">Completion Checklist</div>
+            <div *ngFor="let item of checklist()" class="checklist-row">
+              <span style="font-size:16px;flex-shrink:0">{{ item.done ? '✅' : '⬜' }}</span>
+              <span style="font-size:13px;flex:1"
+                    [style.color]="item.done ? 'var(--success)' : 'var(--text-secondary)'">
+                {{ item.label }}
+              </span>
+              <span *ngIf="item.required && !item.done" class="badge badge-danger" style="font-size:10px">REQUIRED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MODE C — UPDATE STORY
+         ══════════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="activeMode() === 'update'">
+      <div style="display:grid;grid-template-columns:1fr 420px;gap:24px;align-items:start">
+
+        <div>
+          <!-- Issue key loader -->
+          <div class="card mb-16">
+            <div class="section-head">🔍 Load Existing Story</div>
+            <div class="flex gap-10 items-end">
+              <div class="form-group" style="flex:1;margin-bottom:0">
+                <label class="form-label">JIRA Issue Key</label>
+                <input class="form-control" [(ngModel)]="updateIssueKey"
+                       style="font-family:monospace;text-transform:uppercase"
+                       placeholder="PLAT-123"
+                       (keydown.enter)="loadStory()">
+              </div>
+              <button class="btn btn-primary" (click)="loadStory()"
+                      [disabled]="!updateIssueKey || storyLoading()">
+                <span *ngIf="storyLoading()" class="spinner" style="width:14px;height:14px"></span>
+                {{ storyLoading() ? 'Loading…' : '📥 Load Story' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Loaded story display -->
+          <div *ngIf="loadedStory() as ls" class="card mb-16">
+            <div class="flex justify-between items-center mb-16">
+              <div>
+                <div class="flex items-center gap-8">
+                  <span class="issue-key-badge">{{ ls.key }}</span>
+                  <span class="badge" [ngClass]="statusBadgeClass(ls.status)">{{ ls.status }}</span>
+                  <span *ngIf="ls.storyPoints" class="badge badge-gray">{{ ls.storyPoints }} SP</span>
+                </div>
+                <div style="font-weight:600;font-size:15px;margin-top:4px">{{ ls.summary }}</div>
+              </div>
+              <button class="btn btn-primary btn-sm"
+                      (click)="runEnhancement()" [disabled]="enhancementLoading()">
+                <span *ngIf="enhancementLoading()" class="spinner" style="width:14px;height:14px"></span>
+                {{ enhancementLoading() ? 'Analysing…' : '🤖 Get AI Suggestions' }}
+              </button>
+            </div>
+
+            <div class="loaded-story-grid">
+              <div>
+                <div class="detail-label">Description</div>
+                <p class="text-sm">{{ ls.description || '(empty)' }}</p>
+              </div>
+              <div>
+                <div class="detail-label">Acceptance Criteria</div>
+                <p class="text-sm">{{ ls.acceptanceCriteria || '(empty)' }}</p>
+              </div>
+            </div>
+
+            <!-- Apply suggestions bar -->
+            <div *ngIf="enhancement()" class="apply-bar mt-12">
+              <div class="apply-bar-info">
+                <span>Score: <strong [style.color]="scoreColorVal(enhancement()!.qualityScore)">{{ enhancement()!.qualityScore }}</strong></span>
+                <span style="margin-left:8px">→ Projected: <strong [style.color]="scoreColorVal(enhancement()!.improvedScore)">{{ enhancement()!.improvedScore }}</strong></span>
+              </div>
+              <div class="flex gap-8">
+                <button class="btn btn-secondary btn-sm" (click)="applyEnhancement('title')">Apply Title</button>
+                <button class="btn btn-secondary btn-sm" (click)="applyEnhancement('description')">Apply Description</button>
+                <button class="btn btn-primary btn-sm" (click)="applyEnhancement('all')">Apply All</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Editable fields (shown after load) -->
+          <form [formGroup]="updateForm" (ngSubmit)="submitUpdate()" *ngIf="loadedStory()">
+            <div class="card mb-16">
+              <div class="section-head">✏️ Edit Story</div>
+              <div class="form-group">
+                <label class="form-label">Title</label>
+                <input class="form-control" formControlName="title">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" formControlName="description" rows="4"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Acceptance Criteria</label>
+                <textarea class="form-control" formControlName="acceptanceCriteria" rows="5"></textarea>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div class="form-group">
+                  <label class="form-label">Priority</label>
+                  <select class="form-control" formControlName="priority">
+                    <option *ngFor="let p of priorities" [value]="p.value">{{ p.icon }} {{ p.label }}</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Story Points</label>
+                  <select class="form-control" formControlName="storyPoints">
+                    <option value="">— Not estimated —</option>
+                    <option *ngFor="let p of [1,2,3,5,8,13,21]" [value]="p">{{ p }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary"
+                    style="width:100%;justify-content:center"
+                    [disabled]="updateSaving()">
+              <span *ngIf="updateSaving()" class="spinner" style="width:16px;height:16px"></span>
+              {{ updateSaving() ? 'Saving…' : '💾 Save Updates to JIRA' }}
+            </button>
+            <div class="alert alert-success mt-12" *ngIf="updateSaved()">
+              ✅ Story {{ updateIssueKey }} updated successfully!
+            </div>
+          </form>
+        </div>
+
+        <!-- Right: AI Enhancement Panel -->
+        <div>
+          <!-- Disclaimer -->
+          <div class="ai-disclaimer mb-16">
+            <div class="disclaimer-header">⚠️ AI Disclaimer</div>
+            <p>Enhancement suggestions are generated by Google Gemini. LLMs may <strong>hallucinate</strong> — they may produce plausible-sounding but incorrect content. Review all suggestions carefully before applying them to your story.</p>
+          </div>
+
+          <div *ngIf="!enhancement() && !enhancementLoading()"
+               style="text-align:center;padding:40px;color:var(--text-muted)">
+            <div style="font-size:40px;margin-bottom:8px">✏️</div>
+            Load a story and click "Get AI Suggestions" to see enhancement recommendations.
+          </div>
+
+          <!-- Enhancement results -->
+          <div *ngIf="enhancement() as enh">
+
+            <!-- Score comparison -->
+            <div class="card mb-16">
+              <div class="card-title">📊 Quality Assessment</div>
+              <div class="flex gap-16 items-center mb-12">
+                <div class="score-compare">
+                  <div class="score-ring" [ngClass]="scoreClass(enh.qualityScore)">{{ enh.qualityScore }}</div>
+                  <div class="text-xs text-muted mt-4">Current</div>
+                </div>
+                <div style="font-size:24px;color:var(--text-muted)">→</div>
+                <div class="score-compare">
+                  <div class="score-ring" [ngClass]="scoreClass(enh.improvedScore)">{{ enh.improvedScore }}</div>
+                  <div class="text-xs text-muted mt-4">Projected</div>
+                </div>
+              </div>
+              <p class="text-sm">{{ enh.summaryAssessment }}</p>
+            </div>
+
+            <!-- Issues found -->
+            <div class="card mb-16" *ngIf="enh.issues?.length">
+              <div class="card-title">🔍 Issues Found</div>
+              <div *ngFor="let iss of enh.issues" class="enhancement-issue"
+                   [ngClass]="'issue-' + iss.severity.toLowerCase()">
+                <div class="flex items-start gap-8">
+                  <span class="gap-severity" [ngClass]="iss.severity">{{ iss.severity }}</span>
+                  <div>
+                    <div style="font-weight:600;font-size:12px;color:var(--text-primary)">{{ iss.field }}</div>
+                    <div style="font-size:12px;color:var(--danger);margin-top:2px">{{ iss.problem }}</div>
+                    <div style="font-size:12px;color:var(--success);margin-top:4px">💡 {{ iss.suggestion }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Suggested improvements -->
+            <div class="card mb-16" *ngIf="enh.improvedAcceptanceCriteria?.length">
+              <div class="card-title">✅ Suggested Acceptance Criteria</div>
+              <div *ngFor="let ac of enh.improvedAcceptanceCriteria"
+                   class="ai-suggestion text-sm">{{ ac }}</div>
+            </div>
+
+            <!-- Epic context -->
+            <div class="card mb-16" *ngIf="enh.epicContextInsight">
+              <div class="card-title">🔗 Epic Context Insight</div>
+              <p class="text-sm">{{ enh.epicContextInsight }}</p>
+            </div>
+
+            <!-- Missing scenarios -->
+            <div class="card mb-16" *ngIf="enh.missingScenarios?.length">
+              <div class="card-title">⚠️ Missing Scenarios</div>
+              <div *ngFor="let sc of enh.missingScenarios"
+                   class="missing-scenario">{{ sc }}</div>
+            </div>
+
+            <!-- Disclaimer at bottom of results -->
+            <div class="alert alert-warning" style="font-size:12px">
+              {{ enh.disclaimer }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+  `,
+  styles: [`
+    /* ── Mode selector ─────────────────────────────────────────────── */
+    .mode-selector { display:flex; gap:12px; }
+    .mode-btn {
+      display:flex; align-items:center; gap:12px;
+      padding:14px 20px; border:2px solid var(--border);
+      border-radius:var(--radius-lg); background:var(--surface);
+      cursor:pointer; flex:1; transition:all .15s; text-align:left;
+    }
+    .mode-btn:hover { border-color:var(--primary); }
+    .mode-btn-active { border-color:var(--primary); background:var(--primary-light); }
+    .mode-icon  { font-size:28px; flex-shrink:0; }
+    .mode-label { font-size:14px; font-weight:700; color:var(--text-primary); }
+    .mode-sub   { font-size:12px; color:var(--text-muted); margin-top:2px; }
+
+    /* ── AI Disclaimer ─────────────────────────────────────────────── */
+    .ai-disclaimer {
+      border:1px solid #f59e0b; border-radius:var(--radius-lg);
+      background:#fffbeb; padding:14px 16px;
+    }
+    .disclaimer-header {
+      font-weight:700; font-size:13px; color:#92400e; margin-bottom:6px;
+    }
+    .ai-disclaimer p { font-size:12px; color:#78350f; line-height:1.5; }
+
+    /* ── Section head ──────────────────────────────────────────────── */
+    .section-head {
+      font-size:12px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.06em; color:var(--text-muted);
+      margin-bottom:16px; padding-bottom:8px;
+      border-bottom:1px solid var(--border);
+    }
+    .field-group-label {
+      font-size:11px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.06em; color:var(--text-muted); margin-bottom:8px;
+    }
+
+    /* ── Epic card ─────────────────────────────────────────────────── */
+    .epic-card {
+      display:flex; align-items:center; gap:10px;
+      padding:10px 14px; background:#f5f3ff;
+      border:1px solid #ddd6fe; border-radius:var(--radius); font-size:13px;
+    }
+    .epic-key  { font-family:monospace; font-weight:700; color:#5b21b6; }
+    .epic-name { flex:1; color:var(--text-primary); font-weight:500; }
+    .btn-icon  { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:18px; }
+
+    /* ── Team grid ─────────────────────────────────────────────────── */
+    .team-grid { display:flex; flex-wrap:wrap; gap:8px; }
+    .team-option {
+      display:inline-flex; align-items:center;
+      padding:5px 12px; border:1px solid var(--border); border-radius:9999px;
+      font-size:12px; font-weight:500; cursor:pointer; transition:all .15s;
+      color:var(--text-secondary);
+    }
+    .team-option:hover { border-color:var(--primary); color:var(--primary); }
+    .team-option.selected { background:var(--primary-light); border-color:var(--primary); color:var(--primary); }
+
+    /* ── Checklist ─────────────────────────────────────────────────── */
+    .checklist-row {
+      display:flex; align-items:center; gap:8px;
+      padding:7px 0; border-bottom:1px solid var(--border);
+    }
+    .checklist-row:last-child { border-bottom:none; }
+
+    /* ── Metric mini ───────────────────────────────────────────────── */
+    .metric-mini { text-align:center; padding:12px; background:var(--bg); border-radius:var(--radius); }
+    .metric-mini-val { font-size:24px; font-weight:800; color:var(--primary); }
+    .metric-mini-lbl { font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+    /* ── Generated story card ──────────────────────────────────────── */
+    .generated-story-card {
+      border:1px solid var(--border); border-radius:var(--radius-lg);
+      overflow:hidden; background:var(--surface);
+    }
+    .generated-story-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 16px; background:var(--bg); border-bottom:1px solid var(--border);
+      flex-wrap:wrap; gap:10px;
+    }
+    .story-index-badge {
+      width:28px; height:28px; border-radius:50%;
+      background:var(--primary); color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-size:12px; font-weight:700; flex-shrink:0;
+    }
+    .story-title { font-size:13px; font-weight:500; flex:1; min-width:0; }
+    .generated-story-body { padding:16px; }
+    .ac-pre {
+      font-size:12px; font-family:inherit; white-space:pre-wrap;
+      background:var(--bg); padding:10px; border-radius:var(--radius);
+      border:1px solid var(--border); line-height:1.5;
+    }
+    .detail-label { font-size:11px; font-weight:700; text-transform:uppercase;
+                    letter-spacing:.06em; color:var(--text-muted); margin-bottom:4px; }
+    .expand-btn {
+      width:100%; padding:8px; border:none; background:transparent;
+      color:var(--text-muted); font-size:12px; cursor:pointer;
+      border-top:1px solid var(--border); transition:background .12s;
+    }
+    .expand-btn:hover { background:var(--bg); }
+
+    /* ── Update story ──────────────────────────────────────────────── */
+    .issue-key-badge {
+      font-family:monospace; font-weight:700; font-size:14px;
+      color:var(--primary); padding:2px 6px;
+      background:var(--primary-light); border-radius:4px;
+    }
+    .loaded-story-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .apply-bar {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 14px; background:#f0fdf4;
+      border:1px solid #bbf7d0; border-radius:var(--radius);
+      flex-wrap:wrap; gap:8px;
+    }
+    .apply-bar-info { font-size:13px; color:var(--text-secondary); }
+    .score-compare { text-align:center; }
+
+    /* ── Enhancement issues ────────────────────────────────────────── */
+    .enhancement-issue {
+      padding:10px 12px; border-radius:var(--radius);
+      margin-bottom:8px; border:1px solid var(--border);
+    }
+    .issue-critical { background:#fff5f5; border-color:#fca5a5; }
+    .issue-error    { background:#fff7ed; border-color:#fed7aa; }
+    .issue-warning  { background:#fffbeb; border-color:#fde68a; }
+    .issue-suggestion { background:#f0fdf4; border-color:#bbf7d0; }
+    .missing-scenario {
+      font-size:12px; color:var(--danger); padding:6px 10px;
+      border-left:3px solid var(--danger); margin-bottom:6px;
+      background:#fff5f5; border-radius:0 4px 4px 0;
+    }
+  `]
+})
+export class StoryFormComponent implements OnDestroy {
+
+  projectKey = DEFAULT_PROJECT;
+
+  modes: Array<{
+      key: 'epic' | 'create' | 'update';
+      icon: string;
+      label: string;
+      desc: string;
+    }> = [
+    { key: 'epic',   icon: '🏗', label: 'Create Epic',   desc: 'AI decomposes epic into stories' },
+    { key: 'create', icon: '📝', label: 'Create Story',  desc: 'New story with AI assistance' },
+    { key: 'update', icon: '✏️', label: 'Update Story',  desc: 'Enhance an existing JIRA story' },
+  ];
+
+
+
+  activeMode = signal<'epic' | 'create' | 'update'>('create');
+
+  priorities = [
+    { value:'Blocker',  label:'Blocker',  icon:'🔴' }, { value:'Critical', label:'Critical', icon:'🟠' },
+    { value:'Major',    label:'Major',    icon:'🟡' }, { value:'Medium',   label:'Medium',   icon:'🟢' },
+    { value:'Minor',    label:'Minor',    icon:'🔵' }, { value:'Low',      label:'Low',      icon:'⚪' },
+    { value:'Trivial',  label:'Trivial',  icon:'⬜' },
+  ];
+  businessLines = [
+    { value:'Business', label:'🏢 Business' }, { value:'GT', label:'🌐 GT' },
+    { value:'Platform', label:'⚙️ Platform' }, { value:'Infrastructure', label:'🔧 Infrastructure' },
+    { value:'Data', label:'📊 Data & Analytics' }, { value:'Security', label:'🔒 Security' },
+  ];
+  teamOptions = ['Platform Team','Payments Team','Auth Team','Notifications Team','Search Team','Data Team'];
+
+  // ── Mode A state ──────────────────────────────────────────────────────────
+  epicForm = this.fb.group({
+    epicTitle:            ['', [Validators.required, Validators.minLength(5)]],
+    epicDescription:      ['', [Validators.required, Validators.minLength(30)]],
+    epicKey:              [''],
+    businessLine:         ['', Validators.required],
+    priority:             ['Medium'],
+    sprintName:           [''],
+    numberOfDevelopers:   [3, [Validators.required, Validators.min(1)]],
+    numberOfQaEngineers:  [1, [Validators.required, Validators.min(0)]],
+    developerBandwidthSp: [8],
+  });
+  epicGenerating      = signal(false);
+  epicResult          = signal<any>(null);
+  epicSelectedTeams   = signal<string[]>([]);
+  epicSelectedComponents = signal<any[]>([]);
+  epicSelectedVersions   = signal<any[]>([]);
+  epicSprintSelected     = signal<any>(null);
+  expandedGenerated      = signal<Set<number>>(new Set());
+
+  // ── Mode B state ──────────────────────────────────────────────────────────
+  storyForm = this.fb.group({
+    issueType:           ['Story', Validators.required],
+    priority:            ['', Validators.required],
+    businessLine:        ['', Validators.required],
+    title:               ['', [Validators.required, Validators.minLength(5)]],
+    description:         ['', [Validators.required, Validators.minLength(20)]],
+    acceptanceCriteria:  ['', Validators.required],
+    storyPoints:         [''],
+    epicLink:            [''],
+  });
+  validation        = signal<ValidationResult | null>(null);
+  aiLoading         = signal(false);
+  generatingAC      = signal(false);
+  suggestingAC      = signal(false);
+  storySaving       = signal(false);
+  storySavedKey     = signal('');
+  resolvedEpic      = signal<JiraEpic | null>(null);
+  epicLoading       = signal(false);
+  epicNotFound      = signal(false);
+  storySelectedTeams     = signal<string[]>([]);
+  storySelectedComponents = signal<any[]>([]);
+  storySelectedVersions   = signal<any[]>([]);
+  selectedLabels    = signal<string[]>([]);
+  selectedReporter  = signal<JiraUser | null>(null);
+  selectedSprint    = signal<JiraSprint | null>(null);
+
+  // ── Mode C state ──────────────────────────────────────────────────────────
+  updateIssueKey    = '';
+  updateForm        = this.fb.group({
+    title:              [''],
+    description:        [''],
+    acceptanceCriteria: [''],
+    priority:           [''],
+    storyPoints:        [''],
+  });
+  storyLoading         = signal(false);
+  loadedStory          = signal<any>(null);
+  enhancement          = signal<StoryEnhancementResponse | null>(null);
+  enhancementLoading   = signal(false);
+  updateSaving         = signal(false);
+  updateSaved          = signal(false);
+
+  // ── Shared typeahead state ────────────────────────────────────────────────
+  sprintSuggestions    = signal<JiraSprint[]>([]);
+  componentSuggestions = signal<any[]>([]);
+  versionSuggestions   = signal<any[]>([]);
+  userSuggestions      = signal<JiraUser[]>([]);
+  sprintsLoading       = signal(false);
+  componentsLoading    = signal(false);
+  versionsLoading      = signal(false);
+  usersLoading         = signal(false);
+
+  private destroy$ = new Subject<void>();
+  private validate$ = new Subject<void>();
+
+  constructor(
+    private fb: FormBuilder,
+    private aiSvc: AiService,
+    private jiraSvc: JiraService
+  ) {
+    // Auto-validate in create mode
+    this.validate$.pipe(
+      debounceTime(1200), distinctUntilChanged(), takeUntil(this.destroy$)
+    ).subscribe(() => this.runValidation());
+
+    this.storyForm.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.activeMode() === 'create' && (this.storyForm.value.title?.length ?? 0) > 3) {
+        this.validate$.next();
+      }
+    });
+
+    this.onSprintQuery('');
+  }
+
+  setMode(m: 'epic' | 'create' | 'update'): void { this.activeMode.set(m); }
+
+  // ── Mode A: Epic generation ───────────────────────────────────────────────
+
+  generateEpic(): void {
+    if (this.epicForm.invalid) { this.epicForm.markAllAsTouched(); return; }
+    this.epicGenerating.set(true);
+    this.epicResult.set(null);
+    const v = this.epicForm.value;
+    const req = {
+      epicTitle: v.epicTitle, epicDescription: v.epicDescription,
+      epicKey: v.epicKey || undefined, projectKey: this.projectKey,
+      businessLine: v.businessLine, priority: v.priority,
+      sprintName: this.epicSprintSelected()?.name, sprintId: this.epicSprintSelected()?.id,
+      numberOfDevelopers: Number(v.numberOfDevelopers),
+      numberOfQaEngineers: Number(v.numberOfQaEngineers),
+      developerBandwidthSp: Number(v.developerBandwidthSp) || 8,
+      components: this.epicSelectedComponents().map(c => c.name),
+      fixVersions: this.epicSelectedVersions().map(v2 => v2.name),
+      teamNames: this.epicSelectedTeams(),
+    };
+    this.aiSvc.generateStoriesFromEpic(req).subscribe({
+      next: r => { this.epicResult.set(r.data); this.epicGenerating.set(false); },
+      error: () => this.epicGenerating.set(false)
+    });
+  }
+
+  toggleGeneratedExpand(i: number): void {
+    const s = new Set(this.expandedGenerated());
+    s.has(i) ? s.delete(i) : s.add(i);
+    this.expandedGenerated.set(s);
+  }
+
+  createStoryFromGenerated(story: GeneratedStory): void {
+    // Prefill create form and switch to create mode
+    this.setMode('create');
+    this.storyForm.patchValue({
+      title: story.title, description: story.description,
+      acceptanceCriteria: story.acceptanceCriteria,
+      issueType: story.issueType, priority: story.priority,
+      businessLine: story.businessLine,
+      storyPoints: story.storyPoints?.toString() ?? '',
+      epicLink: story.epicLink || '',
+    });
+    this.storySelectedTeams.set(story.teamNames ?? []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Mode B: Create Story ──────────────────────────────────────────────────
+
+  runValidation(): void {
+    const v = this.storyForm.value;
+    if (!v.title) return;
+    this.aiLoading.set(true);
+    this.aiSvc.validate({
+      title: v.title!, description: v.description!,
+      acceptanceCriteria: v.acceptanceCriteria!,
+      issueType: v.issueType!, storyPoints: v.storyPoints ? Number(v.storyPoints) : undefined
+    }).subscribe({
+      next: r => { this.validation.set(r.data); this.aiLoading.set(false); },
+      error: () => this.aiLoading.set(false)
+    });
+  }
+
+  generateAC(): void {
+    const v = this.storyForm.value;
+    if (!v.title) return;
+    this.generatingAC.set(true);
+    this.aiSvc.generateAC(v.title!, v.description!).subscribe({
+      next: r => {
+        this.storyForm.patchValue({ acceptanceCriteria: r.data.join('\n\n') });
+        this.generatingAC.set(false);
+      },
+      error: () => this.generatingAC.set(false)
+    });
+  }
+
+  suggestAcFromEpic(): void {
+    const epic = this.resolvedEpic();
+    if (!epic) return;
+    const v = this.storyForm.value;
+    this.suggestingAC.set(true);
+    const req = {
+      epicKey: epic.issueKey, epicName: epic.name, epicDescription: '',
+      storyTitle: v.title || '', storyDescription: v.description || '',
+      businessLine: v.businessLine || '', issueType: v.issueType || 'Story',
+    };
+    this.aiSvc.suggestAcFromEpicContext(req).subscribe({
+      next: r => {
+        this.storyForm.patchValue({ acceptanceCriteria: r.data.join('\n\n') });
+        this.suggestingAC.set(false);
+      },
+      error: () => this.suggestingAC.set(false)
+    });
+  }
+
+  applyAiAc(): void {
+    const s = this.validation()?.suggestions?.acceptanceCriteria;
+    if (s?.length) this.storyForm.patchValue({ acceptanceCriteria: s.join('\n\n') });
+  }
+
+  resolveEpic(): void {
+    const key = this.storyForm.value.epicLink?.trim();
+    if (!key || this.resolvedEpic()) return;
+    this.epicLoading.set(true); this.epicNotFound.set(false);
+    this.jiraSvc.getEpic(key).subscribe({
+      next: r => { this.resolvedEpic.set(r.data); this.epicLoading.set(false); },
+      error: () => { this.epicNotFound.set(true); this.epicLoading.set(false); }
+    });
+  }
+
+  clearEpic(): void {
+    this.resolvedEpic.set(null); this.epicNotFound.set(false);
+    this.storyForm.patchValue({ epicLink: '' });
+  }
+
+  onEpicInput(e: Event): void {
+    this.resolvedEpic.set(null); this.epicNotFound.set(false);
+    const v = (e.target as HTMLInputElement).value.toUpperCase();
+    (e.target as HTMLInputElement).value = v;
+    this.storyForm.get('epicLink')?.setValue(v, { emitEvent: false });
+  }
+
+  submitStory(): void {
+    if (this.storyForm.invalid) { this.storyForm.markAllAsTouched(); return; }
+    this.storySaving.set(true);
+    const v = this.storyForm.value;
+    const sprint = this.selectedSprint();
+    const epic = this.resolvedEpic();
+    this.jiraSvc.createIssue({
+      projectKey: this.projectKey,
+      summary: v.title!, description: v.description!,
+      acceptanceCriteria: v.acceptanceCriteria!, issueType: v.issueType!,
+      priority: v.priority!, businessLine: v.businessLine!,
+      storyPoints: v.storyPoints ? Number(v.storyPoints) : undefined,
+      sprintId: sprint?.id, sprintName: sprint?.name,
+      epicLink: epic?.issueKey ?? v.epicLink ?? undefined,
+      epicName: epic?.name,
+      reporterAccountId: this.selectedReporter()?.accountId,
+      reporterName: this.selectedReporter()?.displayName,
+      components: this.storySelectedComponents().map(c => c.name),
+      fixVersions: this.storySelectedVersions().map(v2 => v2.name),
+      labels: this.selectedLabels(), teamNames: this.storySelectedTeams(),
+    }).subscribe({
+      next: r => {
+        this.storySavedKey.set(r.data.key);
+        this.storySaving.set(false);
+        setTimeout(() => this.storySavedKey.set(''), 4000);
+      },
+      error: () => this.storySaving.set(false)
+    });
+  }
+
+  // ── Mode C: Update Story ──────────────────────────────────────────────────
+
+  loadStory(): void {
+    if (!this.updateIssueKey) return;
+    this.storyLoading.set(true);
+    this.enhancement.set(null);
+    this.updateIssueKey = this.updateIssueKey.toUpperCase();
+    this.jiraSvc.getIssue(this.updateIssueKey).subscribe({
+      next: r => {
+        this.loadedStory.set(r.data);
+        this.updateForm.patchValue({
+          title: r.data.summary, description: r.data.description,
+          acceptanceCriteria: r.data.acceptanceCriteria,
+          priority: r.data.priority || 'Medium',
+          storyPoints: r.data.storyPoints?.toString() || '',
+        });
+        this.storyLoading.set(false);
+      },
+      error: () => this.storyLoading.set(false)
+    });
+  }
+
+  runEnhancement(): void {
+    const ls = this.loadedStory();
+    if (!ls) return;
+    this.enhancementLoading.set(true);
+    const req = {
+      issueKey: ls.key, title: ls.summary, description: ls.description,
+      acceptanceCriteria: ls.acceptanceCriteria, issueType: ls.issueType,
+      status: ls.status, storyPoints: ls.storyPoints,
+      epicLink: ls.epicLink, epicName: ls.epicName,
+    };
+    this.aiSvc.suggestEnhancements(req).subscribe({
+      next: r => { this.enhancement.set(r.data); this.enhancementLoading.set(false); },
+      error: () => this.enhancementLoading.set(false)
+    });
+  }
+
+  applyEnhancement(field: 'title' | 'description' | 'all'): void {
+    const enh = this.enhancement();
+    if (!enh) return;
+    if (field === 'title' || field === 'all') {
+      if (enh.improvedTitle) this.updateForm.patchValue({ title: enh.improvedTitle });
+    }
+    if (field === 'description' || field === 'all') {
+      if (enh.improvedDescription) this.updateForm.patchValue({ description: enh.improvedDescription });
+      if (enh.improvedAcceptanceCriteria?.length)
+        this.updateForm.patchValue({ acceptanceCriteria: enh.improvedAcceptanceCriteria.join('\n\n') });
+      if (enh.suggestedStoryPoints)
+        this.updateForm.patchValue({ storyPoints: enh.suggestedStoryPoints.toString() });
+    }
+  }
+
+  submitUpdate(): void {
+    this.updateSaving.set(true);
+    setTimeout(() => {
+      this.updateSaving.set(false);
+      this.updateSaved.set(true);
+      setTimeout(() => this.updateSaved.set(false), 3000);
+    }, 800);
+  }
+
+  // ── Shared typeahead handlers ─────────────────────────────────────────────
+
+  onSprintQuery(q: string): void {
+    this.sprintsLoading.set(true);
+    this.jiraSvc.searchSprints(this.projectKey, q).subscribe({
+      next: r => { this.sprintSuggestions.set(r.data); this.sprintsLoading.set(false); },
+      error: () => this.sprintsLoading.set(false)
+    });
+  }
+  onSprintSelected(s: any)      { this.selectedSprint.set(s); }
+  onEpicSprintSelected(s: any)  { this.epicSprintSelected.set(s); }
+
+  onComponentQuery(q: string): void {
+    this.componentsLoading.set(true);
+    this.jiraSvc.searchComponents(this.projectKey, q).subscribe({
+      next: r => { this.componentSuggestions.set(r.data); this.componentsLoading.set(false); },
+      error: () => this.componentsLoading.set(false)
+    });
+  }
+  onVersionQuery(q: string): void {
+    this.versionsLoading.set(true);
+    this.jiraSvc.searchVersions(this.projectKey, q).subscribe({
+      next: r => { this.versionSuggestions.set(r.data); this.versionsLoading.set(false); },
+      error: () => this.versionsLoading.set(false)
+    });
+  }
+  onUserQuery(q: string): void {
+    if (q.length < 2) { this.userSuggestions.set([]); return; }
+    this.usersLoading.set(true);
+    this.jiraSvc.searchUsers(q).subscribe({
+      next: r => { this.userSuggestions.set(r.data); this.usersLoading.set(false); },
+      error: () => this.usersLoading.set(false)
+    });
+  }
+  onReporterSelected(u: any) { this.selectedReporter.set(u); }
+
+  toggleEpicTeam(t: string): void {
+    const ts = this.epicSelectedTeams();
+    this.epicSelectedTeams.set(ts.includes(t) ? ts.filter(x => x !== t) : [...ts, t]);
+  }
+  toggleStoryTeam(t: string): void {
+    const ts = this.storySelectedTeams();
+    this.storySelectedTeams.set(ts.includes(t) ? ts.filter(x => x !== t) : [...ts, t]);
+  }
+
+  uppercaseInput(e: Event, form: FormGroup, field: string): void {
+    const v = (e.target as HTMLInputElement).value.toUpperCase();
+    (e.target as HTMLInputElement).value = v;
+    form.get(field)?.setValue(v, { emitEvent: false });
+  }
+
+  // ── Display helpers ───────────────────────────────────────────────────────
+
+  checklist() {
+    const v = this.storyForm.value;
+    return [
+      { label:'Title (5+ chars)',       done: (v.title?.length??0) >= 5,           required:true  },
+      { label:'Description (20+ chars)',done: (v.description?.length??0) >= 20,     required:true  },
+      { label:'Acceptance Criteria',    done: !!v.acceptanceCriteria,               required:true  },
+      { label:'Priority set',           done: !!v.priority,                          required:true  },
+      { label:'Business Line set',      done: !!v.businessLine,                      required:true  },
+      { label:'Story points',           done: !!v.storyPoints,                       required:false },
+      { label:'Sprint assigned',        done: !!this.selectedSprint(),              required:false },
+      { label:'Epic linked',            done: !!this.resolvedEpic(),                required:false },
+      { label:'Component/s added',      done: this.storySelectedComponents().length > 0, required:false },
+      { label:'AI score ≥ 60',          done: (this.validation()?.qualityScore??0) >= 60, required:false },
+    ];
+  }
+
+  isInvalid(form: FormGroup, field: string): boolean {
+    const c = form.get(field); return !!(c?.invalid && c?.touched);
+  }
+
+  scoreClass(s: number): string { return s >= 75 ? 'high' : s >= 50 ? 'mid' : 'low'; }
+  scoreColorVal(s: number): string {
+    return s >= 75 ? 'var(--success)' : s >= 50 ? 'var(--warning)' : 'var(--danger)';
+  }
+  statusBadgeClass(s: string): string {
+    const m: Record<string,string> = {
+      DONE:'badge-success', IN_PROGRESS:'badge-info', BLOCKED:'badge-danger',
+      READY_FOR_QA:'badge-info', QA_IN_PROGRESS:'badge-warning'
+    };
+    return m[s] ?? 'badge-gray';
+  }
+
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+}

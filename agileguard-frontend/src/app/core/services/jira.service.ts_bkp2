@@ -15,7 +15,7 @@ export class JiraService {
 
   constructor(private http: HttpClient) {}
 
-  // ── Core issue methods ────────────────────────────────────────────────────
+  // ── Existing ─────────────────────────────────────────────────────────────
 
   getActiveSprintIssues(projectKey: string): Observable<ApiResponse<JiraIssue[]>> {
     return this.http.get<ApiResponse<JiraIssue[]>>(`${this.base}/projects/${projectKey}/issues`);
@@ -44,12 +44,7 @@ export class JiraService {
       { params: new HttpParams().set('toStatus', toStatus) });
   }
 
-  /** Creates a new JIRA issue with all enriched fields. */
-  createIssue(request: CreateIssueRequest): Observable<ApiResponse<JiraIssue>> {
-    return this.http.post<ApiResponse<JiraIssue>>(`${this.base}/issues/create`, request);
-  }
-
-  // ── Story Editor typeahead lookups ────────────────────────────────────────
+  // ── Story Editor lookups (NEW) ────────────────────────────────────────────
 
   /** Typeahead: returns sprints matching the query string. */
   searchSprints(projectKey: string, q: string): Observable<ApiResponse<JiraSprint[]>> {
@@ -78,52 +73,36 @@ export class JiraService {
       `${this.base}/users`, { params: new HttpParams().set('q', q) });
   }
 
-  // ── Epic management ───────────────────────────────────────────────────────
-
   /** Resolves an epic key (e.g. "PLAT-5") to its name and status. */
   getEpic(epicKey: string): Observable<ApiResponse<JiraEpic>> {
     return this.http.get<ApiResponse<JiraEpic>>(`${this.base}/epics/${epicKey}`);
   }
 
-  /** Creates a new JIRA Epic issue. */
-  createEpic(req: {
-    projectKey: string;
-    epicName: string;
-    description?: string;
-    priority?: string;
-    businessLine?: string;
-  }): Observable<ApiResponse<JiraIssue>> {
-    return this.http.post<ApiResponse<JiraIssue>>(`${this.base}/epics`, req);
+  /** Creates a new JIRA issue with all enriched fields. */
+  createIssue(request: CreateIssueRequest): Observable<ApiResponse<JiraIssue>> {
+    return this.http.post<ApiResponse<JiraIssue>>(`${this.base}/issues/create`, request);
   }
 
-  /** Inspects an existing epic — fetches child stories + runs gap detection on each. */
-  inspectEpic(epicKey: string): Observable<ApiResponse<any>> {
-    return this.http.get<ApiResponse<any>>(`${this.base}/epics/${epicKey}/inspect`);
-  }
+  // ── SAFe Sprint Report ─────────────────────────────────────────────────────
 
-  /** Returns stories linked to an epic (lightweight, no gap analysis). */
-  getEpicStories(epicKey: string): Observable<ApiResponse<JiraIssue[]>> {
-    return this.http.get<ApiResponse<JiraIssue[]>>(`${this.base}/epics/${epicKey}/stories`);
-  }
+    /** Generates the full SAFe sprint report for all feature teams. */
+    getSprintReport(
+      projectKey: string,
+      sprintId?: number,
+      pi?: string
+    ): Observable<ApiResponse<any>> {
+      let params = new HttpParams().set('projectKey', projectKey);
+      if (sprintId) params = params.set('sprintId', sprintId.toString());
+      if (pi)       params = params.set('pi', pi);
+      return this.http.get<ApiResponse<any>>(`${this.base}/sprint-report`, { params });
+    }
 
-  // ── SAFe Sprint Report ────────────────────────────────────────────────────
-
-  /** Generates the full SAFe sprint report for all feature teams. */
-  getSprintReport(
-    projectKey: string,
-    sprintId?: number,
-    pi?: string
-  ): Observable<ApiResponse<any>> {
-    let params = new HttpParams().set('projectKey', projectKey);
-    if (sprintId) params = params.set('sprintId', sprintId.toString());
-    if (pi)       params = params.set('pi', pi);
-    return this.http.get<ApiResponse<any>>(`${this.base}/sprint-report`, { params });
-  }
-
-  /** Returns all sprints for the sprint-selector dropdown in the SAFe report. */
-  getSprintsForReport(projectKey: string): Observable<ApiResponse<any[]>> {
-    return this.http.get<ApiResponse<any[]>>(
-      `${this.base}/sprint-report/sprints`,
-      { params: new HttpParams().set('projectKey', projectKey) });
-  }
+    /** Returns all sprints for the sprint-selector dropdown. */
+    getSprintsForReport(projectKey: string): Observable<ApiResponse<any[]>> {
+      return this.http.get<ApiResponse<any[]>>(
+        `${this.base}/sprint-report/sprints`,
+        { params: new HttpParams().set('projectKey', projectKey) });
+    }
 }
+
+
