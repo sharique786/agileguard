@@ -2,45 +2,27 @@ package com.agileguard.jira.controller;
 
 import com.agileguard.common.dto.ApiResponse;
 import com.agileguard.common.enums.IssueStatus;
-import com.agileguard.jira.model.CreateIssueRequest;
-import com.agileguard.jira.model.GapReport;
-import com.agileguard.jira.model.JiraComponent;
-import com.agileguard.jira.model.JiraEpic;
-import com.agileguard.jira.model.JiraIssue;
-import com.agileguard.jira.model.JiraSprint;
-import com.agileguard.jira.model.JiraUser;
-import com.agileguard.jira.model.JiraVersion;
-import com.agileguard.jira.model.SprintHealthReport;
-import com.agileguard.jira.service.GapReportService;
-import com.agileguard.jira.service.JiraClientService;
-import com.agileguard.jira.service.JiraLookupService;
-import com.agileguard.jira.service.StoryGapDetector;
-import com.agileguard.jira.service.TransitionGuard;
+import com.agileguard.jira.model.*;
+import com.agileguard.jira.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
 
 /**
  * REST controller for JIRA integration.
- * <p>
+ *
  * Story Editor lookup endpoints (new):
- * GET /api/jira/projects/{key}/sprints?q=         typeahead sprints
- * GET /api/jira/projects/{key}/components?q=      typeahead components
- * GET /api/jira/projects/{key}/versions?q=        typeahead fix versions
- * GET /api/jira/users?q=                          typeahead reporter users
- * GET /api/jira/epics/{epicKey}                   resolve epic key → name
- * POST /api/jira/issues/create                    create issue with all fields
+ *   GET /api/jira/projects/{key}/sprints?q=         typeahead sprints
+ *   GET /api/jira/projects/{key}/components?q=      typeahead components
+ *   GET /api/jira/projects/{key}/versions?q=        typeahead fix versions
+ *   GET /api/jira/users?q=                          typeahead reporter users
+ *   GET /api/jira/epics/{epicKey}                   resolve epic key → name
+ *   POST /api/jira/issues/create                    create issue with all fields
+ *
  * Existing endpoints remain unchanged.
  */
 @RestController
@@ -48,11 +30,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class JiraController {
 
-    private final JiraClientService jiraClientService;
-    private final JiraLookupService lookupService;
-    private final GapReportService gapReportService;
-    private final StoryGapDetector gapDetector;
-    private final TransitionGuard transitionGuard;
+    private final JiraClientService  jiraClientService;
+    private final JiraLookupService  lookupService;
+    private final GapReportService   gapReportService;
+    private final StoryGapDetector   gapDetector;
+    private final TransitionGuard    transitionGuard;
 
     // ── Existing endpoints ────────────────────────────────────────────────────
 
@@ -152,7 +134,7 @@ public class JiraController {
 
     /**
      * Resolves an epic issue key to its name and status.
-     * Called on blur of the Epic Link field (e.g., when user types "COMMSSURV-5").
+     * Called on blur of the Epic Link field (e.g., when user types "PLAT-5").
      * Returns 404 if the key is not found or is not an Epic.
      */
     @GetMapping("/epics/{epicKey}")
@@ -174,7 +156,7 @@ public class JiraController {
         // In real mode, forward to JIRA REST API. For POC, echo back a mock issue.
         JiraIssue created = JiraIssue.builder()
                 .id("mock-" + System.currentTimeMillis())
-                .key(request.getProjectKey() + "-" + (int) (Math.random() * 900 + 100))
+                .key(request.getProjectKey() + "-" + (int)(Math.random() * 900 + 100))
                 .summary(request.getSummary())
                 .description(request.getDescription())
                 .acceptanceCriteria(request.getAcceptanceCriteria())
@@ -197,3 +179,7 @@ public class JiraController {
         return ResponseEntity.status(201).body(ApiResponse.success("Issue created", created));
     }
 }
+
+    // Injected via constructor — add to existing @RequiredArgsConstructor
+    // private final SprintReportService sprintReportService;
+
