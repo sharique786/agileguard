@@ -4,7 +4,7 @@ export interface AuthResponse { accessToken: string; refreshToken: string; token
 export interface Tenant { id: string; name: string; slug: string; plan: string; active: boolean; jiraBaseUrl?: string; jiraUserEmail?: string; jiraApiToken?: string; }
 export interface ProjectTeam { id: string; tenantId: string; name: string; jiraProjectKey: string; githubOrg: string; }
 export interface FeatureTeam { id: string; projectTeamId: string; name: string; jiraComponent: string; githubRepos?: string; }
-export interface JiraIssue { id: string; key: string; summary: string; description: string; acceptanceCriteria: string; issueType: string; status: string; storyPoints: number; assigneeName: string; timeSpentMinutes: number; statusChangedAt: string; subTasks: SubTask[]; linkedPullRequests: string[]; projectKey: string; epicLink?: string; epicName?: string; priority?: string; businessLine?: string; reporterAccountId?: string; reporterName?: string; components?: string[]; fixVersions?: string[]; labels?: string[]; teamNames?: string[]; sprintId?: number; sprintName?: string; }
+export interface JiraIssue { id: string; key: string; summary: string; description: string; acceptanceCriteria: string; issueType: string; status: string; storyPoints: number; assigneeName: string; timeSpentMinutes: number; statusChangedAt: string; subTasks: SubTask[]; linkedPullRequests: string[]; projectKey: string; priority?: string; }
 export interface SubTask { id: string; key: string; type: string; status: string; summary: string; }
 export interface GapFinding { issueKey: string; type: string; severity: string; message: string; suggestedAction: string; detectedAt: string; }
 export interface GapReport { issueKey: string; issueSummary: string; qualityScore: number; flagged: boolean; findings: GapFinding[]; criticalCount: number; errorCount: number; warningCount: number; }
@@ -201,14 +201,4 @@ export interface StoryEnhancementResponse {
   epicContextInsight: string; missingScenarios: string[];
   issues: { severity: string; field: string; problem: string; suggestion: string; }[];
   disclaimer: string;
-}
-
-// ─── Epic inspection ───────────────────────────────────────────────────────
-export interface EpicInspectionResult {
-  epicKey: string; epicName: string; epicStatus: string;
-  linkedStories: JiraIssue[]; storyGapReports: GapReport[];
-  storiesWithGaps: number; flaggedStories: number;
-  averageQualityScore: number;
-  storiesMissingAc: string[]; storiesMissingPoints: string[];
-  agingStories: string[]; gapSummary: string; totalStories: number;
 }
