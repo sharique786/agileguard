@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 public class StoryEnhancementRequest {
 
-    /** JIRA issue key of the existing story (e.g., "PLAT-123") */
+    /** JIRA issue key of the existing story (e.g., "COMMSSURV-123") */
     private String issueKey;
 
     private String title;

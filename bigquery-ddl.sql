@@ -60,16 +60,16 @@ CREATE TABLE IF NOT EXISTS `agileguard.core.ag_tenants` (
 
   -- Identity
   tenant_id       STRING  NOT NULL,   -- UUID, primary key
-  name            STRING  NOT NULL,   -- "Acme Corporation"
-  slug            STRING  NOT NULL,   -- "acme"  (unique, URL-safe)
+  name            STRING  NOT NULL,   -- "DB Corporation"
+  slug            STRING  NOT NULL,   -- "db"  (unique, URL-safe)
 
   -- Subscription
   plan            STRING  NOT NULL,   -- FREE | PRO | ENTERPRISE
   is_active       BOOL    NOT NULL DEFAULT TRUE,
 
   -- JIRA connection (tokens stored in GCP Secret Manager; only reference stored here)
-  jira_base_url   STRING,             -- "https://acme.atlassian.net"
-  jira_user_email STRING,             -- "svc-agileguard@acme.com"
+  jira_base_url   STRING,             -- "https://db.atlassian.net"
+  jira_user_email STRING,             -- "svc-agileguard@db.com"
   jira_secret_ref STRING,             -- Secret Manager resource name
 
   -- Metadata
@@ -93,8 +93,8 @@ CREATE TABLE IF NOT EXISTS `agileguard.core.ag_project_teams` (
   project_team_id  STRING  NOT NULL,  -- UUID
   tenant_id        STRING  NOT NULL,  -- FK → ag_tenants.tenant_id
   name             STRING  NOT NULL,  -- "Platform Team"
-  jira_project_key STRING,            -- "PLAT"
-  github_org       STRING,            -- "acme-platform"
+  jira_project_key STRING,            -- "COMMSSURV"
+  github_org       STRING,            -- "db-platform"
   is_active        BOOL    NOT NULL DEFAULT TRUE,
   created_at       TIMESTAMP NOT NULL,
   updated_at       TIMESTAMP
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS `agileguard.reports.ag_gap_findings` (
   scan_run_id      STRING,            -- groups findings from the same scheduled scan
 
   -- Issue reference
-  jira_issue_key   STRING  NOT NULL,  -- "PLAT-123"
+  jira_issue_key   STRING  NOT NULL,  -- "COMMSSURV-123"
   issue_summary    STRING,
   sprint_id        STRING,
   sprint_name      STRING,
@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS `agileguard.reports.ag_story_quality_log` (
   -- New enriched fields (Story Editor v2)
   priority         STRING,            -- Blocker | Critical | Major | Medium | …
   business_line    STRING,            -- Business | GT | Platform | …
-  epic_link        STRING,            -- "PLAT-5"
+  epic_link        STRING,            -- "COMMSSURV-5"
   components       STRING,            -- JSON array: ["Payments","Auth"]
   fix_versions     STRING,            -- JSON array: ["v2.4.0"]
   labels           STRING,            -- JSON array: ["tech-debt","security"]
@@ -339,7 +339,7 @@ CREATE TABLE IF NOT EXISTS `agileguard.reports.ag_github_runs` (
   -- GitHub identifiers
   github_run_id     INT64   NOT NULL,  -- GitHub's numeric run ID
   workflow_name     STRING,
-  repo_full_name    STRING,            -- "acme-platform/payments-api"
+  repo_full_name    STRING,            -- "db-platform/payments-api"
   head_branch       STRING,
   head_sha          STRING,
 
@@ -349,7 +349,7 @@ CREATE TABLE IF NOT EXISTS `agileguard.reports.ag_github_runs` (
   triggered_by      STRING,            -- GitHub username
   run_url           STRING,
 
-  -- JIRA linkage (extracted from branch name convention: feature/PLAT-123-description)
+  -- JIRA linkage (extracted from branch name convention: feature/COMMSSURV-123-description)
   jira_issue_key    STRING,
 
   -- Timing

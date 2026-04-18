@@ -11,7 +11,7 @@
 # All services start with SPRING_PROFILES_ACTIVE=local so they use:
 #   - H2 in-memory databases (no PostgreSQL needed)
 #   - Mock JIRA, Gemini AI, and GitHub clients
-#   - Pre-seeded demo users (admin@acme.com / Admin@1234)
+#   - Pre-seeded demo users (admin@db.com / Admin@1234)
 #
 # To connect real APIs, override the environment variables below or
 # create a .env file at the same level as this file.
@@ -69,7 +69,7 @@ services:
       # JIRA_BASE_URL: https://your-org.atlassian.net
       # JIRA_USER_EMAIL: svc@yourcompany.com
       # JIRA_API_TOKEN: ATATT3x...
-      # JIRA_SCAN_PROJECTS: PLAT
+      # JIRA_SCAN_PROJECTS: COMMSSURV
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
       interval: 20s

@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class SprintStoryDetail {
 
-    private String      issueKey;         // "PLAT-101"
+    private String      issueKey;         // "COMMSSURV-101"
     private String      summary;          // story title
     private IssueType   issueType;        // STORY | BUG | TASK
     private IssueStatus status;           // final status at report generation

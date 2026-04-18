@@ -680,7 +680,7 @@ export class ReportsComponent implements OnInit {
       error: () => this.loading.set(false)
     });
 
-    this.github.getWorkflowRuns('acme-platform', 'payments-service').subscribe({
+    this.github.getWorkflowRuns('db-platform', 'payments-service').subscribe({
       next: res => this.workflowRuns.set(res.data),
       error: () => {}
     });

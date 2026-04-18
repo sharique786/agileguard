@@ -17,7 +17,7 @@ import { JiraConfigService } from '../../core/services/jira-config.service';
  *     (same look, just not clickable). No broken links or empty hrefs ever shown.
  *
  * Usage:
- *   <app-jira-key [issueKey]="'PLAT-101'" />
+ *   <app-jira-key [issueKey]="'COMMSSURV-101'" />
  *   <app-jira-key [issueKey]="s.issueKey" [type]="'epic'" [label]="s.summary" />
  */
 @Component({

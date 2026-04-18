@@ -8,7 +8,7 @@ import { Injectable, signal } from '@angular/core';
  *
  * JIRA browse URL pattern:
  *   {baseUrl}/browse/{issueKey}
- *   e.g. https://acme.atlassian.net/browse/COMMSSURV-101
+ *   e.g. https://db.atlassian.net/browse/COMMSSURV-101
  *
  * The JiraKeyComponent reads baseUrl as a reactive signal — any update
  * (from Admin panel, AppComponent startup, or the inline setup popup)

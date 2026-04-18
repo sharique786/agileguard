@@ -62,7 +62,7 @@ npm run build:prod     # production bundle with prod environment
 | `JIRA_BASE_URL` | ✅ | `https://db.atlassian.net` | Base URL of the Atlassian instance |
 | `JIRA_USER_EMAIL` | ✅ | `svc-agileguard@db.com` | Service account email for API auth |
 | `JIRA_API_TOKEN` | ✅ | `ATATT3x...` | Atlassian API token (not password). Create at id.atlassian.com |
-| `JIRA_SCAN_PROJECTS` | ✅ | `PLAT,SHOP,INFRA` | Comma-separated JIRA project keys to scan |
+| `JIRA_SCAN_PROJECTS` | ✅ | `COMMSSURV,SHOP,INFRA` | Comma-separated JIRA project keys to scan |
 | `JIRA_SCAN_TENANT` | ✅ | `db-tenant-id` | Tenant ID to scope gap findings |
 | `JIRA_AGING_THRESHOLD` | ❌ | `5` | Days before a story is marked aging (default: 5) |
 
@@ -119,7 +119,7 @@ JIRA_USE_MOCK=false
 JIRA_BASE_URL=https://your-org.atlassian.net
 JIRA_USER_EMAIL=you@example.com
 JIRA_API_TOKEN=ATATT3xFfGF...
-JIRA_SCAN_PROJECTS=PLAT
+JIRA_SCAN_PROJECTS=COMMSSURV
 JIRA_SCAN_TENANT=your-tenant-id
 
 GEMINI_USE_MOCK=false

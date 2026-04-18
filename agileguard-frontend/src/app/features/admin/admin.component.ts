@@ -189,7 +189,7 @@ import {
             </div>
             <div class="form-group" style="margin-bottom:0">
               <label class="form-label">GitHub Org</label>
-              <input class="form-control" formControlName="githubOrg" placeholder="acme-platform">
+              <input class="form-control" formControlName="githubOrg" placeholder="db-platform">
             </div>
             <div class="flex gap-8">
               <button class="btn btn-primary" type="submit" [disabled]="newProjectForm.invalid || savingProject()">

@@ -36,7 +36,7 @@ agileguard:
     api-token: ${JIRA_API_TOKEN}        # Injected from env var / secret
     aging-threshold-days: 5
     min-description-length: 20
-    scan-project-keys: ${JIRA_SCAN_PROJECTS:PLAT}
+    scan-project-keys: ${JIRA_SCAN_PROJECTS:COMMSSURV}
     scan-tenant-id: ${JIRA_SCAN_TENANT:dev-tenant}
     scan-interval-ms: 900000
 
