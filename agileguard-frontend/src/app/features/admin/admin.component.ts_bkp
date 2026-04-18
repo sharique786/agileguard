@@ -183,7 +183,7 @@ import {
             </div>
             <div class="form-group" style="margin-bottom:0">
               <label class="form-label">JIRA Project Key</label>
-              <input class="form-control" formControlName="jiraProjectKey" placeholder="PLAT"
+              <input class="form-control" formControlName="jiraProjectKey" placeholder="COMMSSURV"
                      (input)="uppercaseKey($event, newProjectForm, 'jiraProjectKey')">
             </div>
             <div class="form-group" style="margin-bottom:0">

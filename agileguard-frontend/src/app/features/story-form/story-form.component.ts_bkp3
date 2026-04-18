@@ -12,7 +12,7 @@ import {
   GeneratedStory, StoryEnhancementResponse, GapReport
 } from '../../core/models';
 
-const PROJECT = 'PLAT';
+const PROJECT = 'COMMSSURV';
 
 @Component({
   selector: 'app-story-form',
@@ -92,7 +92,7 @@ const PROJECT = 'PLAT';
                 <label class="form-label required">Epic JIRA Key</label>
                 <input class="form-control" [(ngModel)]="fetchEpicKey"
                        style="font-family:monospace;text-transform:uppercase"
-                       placeholder="PLAT-10"
+                       placeholder="COMMSSURV-10"
                        (input)="fetchEpicKey = $any($event.target).value.toUpperCase()">
               </div>
               <button class="btn btn-primary" (click)="fetchAndInspectEpic()"
@@ -409,7 +409,7 @@ const PROJECT = 'PLAT';
               <div class="flex gap-8">
                 <input class="form-control" formControlName="epicLink"
                        style="font-family:monospace;text-transform:uppercase"
-                       placeholder="PLAT-5"
+                       placeholder="COMMSSURV-5"
                        (blur)="resolveEpic()"
                        (input)="onEpicInput($event)">
                 <button type="button" class="btn btn-secondary btn-sm"
@@ -623,7 +623,7 @@ const PROJECT = 'PLAT';
                 <label class="form-label">JIRA Issue Key</label>
                 <input class="form-control" [(ngModel)]="updateKey"
                        style="font-family:monospace;text-transform:uppercase"
-                       placeholder="PLAT-123"
+                       placeholder="COMMSSURV-123"
                        (input)="updateKey = $any($event.target).value.toUpperCase()"
                        (keydown.enter)="loadStory()">
               </div>
