@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { JiraService } from '../../core/services/jira.service';
 import { AuthService } from '../../core/services/auth.service';
+import { JiraKeyComponent } from '../../shared/components/jira-key.component';
 import { SprintHealthReport, GapReport } from '../../core/models';
 
 /**
@@ -11,7 +12,7 @@ import { SprintHealthReport, GapReport } from '../../core/models';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, JiraKeyComponent],
   template: `
     <div>
       <div class="page-header flex justify-between items-center">
@@ -84,7 +85,7 @@ import { SprintHealthReport, GapReport } from '../../core/models';
               </thead>
               <tbody>
                 <tr *ngFor="let r of report()!.issueReports" [class.flagged-row]="r.flagged">
-                  <td><strong>{{ r.issueKey }}</strong></td>
+                  <td><app-jira-key [issueKey]="r.issueKey" /></td>
                   <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.issueSummary }}</td>
                   <td>
                     <span class="badge" [ngClass]="getScoreBadge(r.qualityScore)">{{ r.qualityScore }}</span>
@@ -112,7 +113,9 @@ import { SprintHealthReport, GapReport } from '../../core/models';
                   <div class="gap-item" [ngClass]="f.severity">
                     <span class="gap-severity" [ngClass]="f.severity">{{ f.severity }}</span>
                     <div>
-                      <div style="font-size:13px;font-weight:500">{{ r.issueKey }}: {{ f.message }}</div>
+                      <div style="font-size:13px;font-weight:500">
+                        <app-jira-key [issueKey]="r.issueKey" />: {{ f.message }}
+                      </div>
                       <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">💡 {{ f.suggestedAction }}</div>
                     </div>
                   </div>

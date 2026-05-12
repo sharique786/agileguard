@@ -29,7 +29,7 @@ agileguard:
     api-token: your-jira-api-token
     aging-threshold-days: 5
     min-description-length: 20
-    scan-project-keys: PLAT                 # Comma-separated project keys to scan
+    scan-project-keys: COMMSSURV                 # Comma-separated project keys to scan
     scan-tenant-id: demo
     scan-interval-ms: 900000                # 15 minutes
 

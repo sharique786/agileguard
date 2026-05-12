@@ -5,6 +5,7 @@ import { GapTypeLabelPipe } from '../../core/pipes/gap-type-label.pipe';
 import { JiraService } from '../../core/services/jira.service';
 import { GitHubService } from '../../core/services/github.service';
 import { ExportService } from '../../core/services/export.service';
+import { JiraKeyComponent } from '../../shared/components/jira-key.component';
 import { SprintHealthReport, GapReport, WorkflowRun } from '../../core/models';
 
 /**
@@ -27,7 +28,7 @@ import { SprintHealthReport, GapReport, WorkflowRun } from '../../core/models';
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, GapTypeLabelPipe],
+  imports: [CommonModule, FormsModule, GapTypeLabelPipe, JiraKeyComponent],
   template: `
     <div>
 
@@ -303,7 +304,7 @@ import { SprintHealthReport, GapReport, WorkflowRun } from '../../core/models';
           <div class="issue-header" (click)="toggleExpand(issue.issueKey)">
             <div class="flex items-center gap-12"
                  style="flex:1;min-width:0">
-              <span class="issue-key">{{ issue.issueKey }}</span>
+              <span class="issue-key"><app-jira-key [issueKey]="issue.issueKey" [label]="issue.issueSummary" /></span>
               <span class="issue-summary">{{ issue.issueSummary }}</span>
               <span *ngIf="issue.flagged"
                     class="badge badge-danger">🚨 Flagged</span>
@@ -421,12 +422,8 @@ import { SprintHealthReport, GapReport, WorkflowRun } from '../../core/models';
                   {{ run.triggeredBy || '—' }}
                 </td>
                 <td>
-                  <span *ngIf="run.jiraIssueKey"
-                        class="badge badge-purple">
-                    {{ run.jiraIssueKey }}
-                  </span>
-                  <span *ngIf="!run.jiraIssueKey"
-                        class="text-muted text-xs">—</span>
+                  <app-jira-key *ngIf="run.jiraIssueKey" [issueKey]="run.jiraIssueKey" />
+                  <span *ngIf="!run.jiraIssueKey" class="text-muted text-xs">—</span>
                 </td>
                 <td class="text-sm text-secondary">
                   {{ run.durationSeconds }}s

@@ -134,7 +134,7 @@ public class JiraController {
 
     /**
      * Resolves an epic issue key to its name and status.
-     * Called on blur of the Epic Link field (e.g., when user types "PLAT-5").
+     * Called on blur of the Epic Link field (e.g., when user types "COMMSSURV-5").
      * Returns 404 if the key is not found or is not an Epic.
      */
     @GetMapping("/epics/{epicKey}")

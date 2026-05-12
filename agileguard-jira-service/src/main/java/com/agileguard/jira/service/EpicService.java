@@ -58,7 +58,7 @@ public class EpicService {
      * Real JQL:  "Epic Link" = {epicKey} OR parent = {epicKey}
      * Mock:      returns a curated set of stories with varied quality levels.
      *
-     * @param epicKey  JIRA issue key of the epic (e.g. "PLAT-10")
+     * @param epicKey  JIRA issue key of the epic (e.g. "COMMSSURV-10")
      * @return         EpicInspectionResult with field names matching the Angular template
      */
     public EpicInspectionResult inspectEpic(String epicKey) {
@@ -138,7 +138,7 @@ public class EpicService {
             return getMockStoriesForEpic(epicKey);
         }
         // Real: search JIRA for stories whose epicLink field matches this key
-        String projectKey = epicKey.contains("-") ? epicKey.split("-")[0] : "PLAT";
+        String projectKey = epicKey.contains("-") ? epicKey.split("-")[0] : "COMMSSURV";
         return jiraClient.getActiveSprintIssues(projectKey).stream()
                 .filter(issue -> epicKey.equals(issue.getEpicLink()))
                 .collect(Collectors.toList());
@@ -217,7 +217,7 @@ public class EpicService {
      * so the inspection panel demonstrates the gap analysis meaningfully.
      */
     private List<JiraIssue> getMockStoriesForEpic(String epicKey) {
-        String prefix = epicKey.contains("-") ? epicKey.split("-")[0] : "PLAT";
+        String prefix = epicKey.contains("-") ? epicKey.split("-")[0] : "COMMSSURV";
         return List.of(
 
             // Story 1 — fully groomed, good quality

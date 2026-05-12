@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 public class EpicContextRequest {
 
-    /** Epic issue key (e.g., "PLAT-10") */
+    /** Epic issue key (e.g., "COMMSSURV-10") */
     private String epicKey;
     private String epicName;
     private String epicDescription;   // fetched from JIRA

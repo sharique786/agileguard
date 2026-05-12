@@ -27,11 +27,11 @@ public class TeamSprintReport {
     // ── Identification ─────────────────────────────────────────────────────
     private String    featureTeamId;
     private String    featureTeamName;      // "Payments Team"
-    private String    projectKey;           // "PLAT"
+    private String    projectKey;           // "COMMSSURV"
     private String    jiraComponent;        // "Payments"
     private String    piName;               // "PI-7"
     private Long      sprintId;
-    private String    sprintName;           // "PLAT Sprint 42 — Platform Hardening"
+    private String    sprintName;           // "COMMSSURV Sprint 42 — Platform Hardening"
     private String    sprintGoal;
     private LocalDate sprintStartDate;
     private LocalDate sprintEndDate;

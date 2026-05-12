@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { TenantService } from '../../core/services/tenant.service';
 import { AuthService } from '../../core/services/auth.service';
+import { JiraConfigService } from '../../core/services/jira-config.service';
 import {
   Tenant, ProjectTeam, FeatureTeam, UserResponse, UpdateTenantRequest
 } from '../../core/models';
@@ -440,7 +441,8 @@ export class AdminComponent implements OnInit {
     private tenantSvc: TenantService,
     public  auth: AuthService,
     private route: ActivatedRoute,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private jiraConfig: JiraConfigService
   ) {}
 
   ngOnInit(): void {
@@ -458,6 +460,8 @@ export class AdminComponent implements OnInit {
         this.tenant.set(res.data);
         this.orgEditForm.patchValue({ name: res.data.name, plan: res.data.plan });
         this.jiraEditForm.patchValue({ jiraBaseUrl: res.data.jiraBaseUrl ?? '', jiraUserEmail: res.data.jiraUserEmail ?? '' });
+        // Seed the JIRA base URL into JiraConfigService so all pages can build browse links
+        if (res.data.jiraBaseUrl) { this.jiraConfig.setBaseUrl(res.data.jiraBaseUrl); }
         this.loading.set(false);
       },
       error: () => this.loading.set(false)

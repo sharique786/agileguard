@@ -134,7 +134,7 @@ export class ReportsComponent implements OnInit {
 
   loadAll(): void {
     this.loading.set(true);
-    this.jira.scanProject('PLAT').subscribe({
+    this.jira.scanProject('COMMSSURV').subscribe({
       next: (res) => { this.report.set(res.data); this.loading.set(false); },
       error: () => this.loading.set(false)
     });

@@ -53,7 +53,7 @@ public class EpicController {
      *
      * Request body:
      * {
-     *   "projectKey":   "PLAT",
+     *   "projectKey":   "COMMSSURV",
      *   "epicName":     "Payments Gateway v2 — Multi-currency support",
      *   "description":  "As a merchant...",
      *   "priority":     "High",

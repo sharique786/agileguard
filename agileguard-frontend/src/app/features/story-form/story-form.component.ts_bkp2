@@ -17,7 +17,7 @@ import {
   GeneratedStory, StoryEnhancementResponse
 } from '../../core/models';
 
-const DEFAULT_PROJECT = 'PLAT';
+const DEFAULT_PROJECT = 'COMMSSURV';
 
 /**
  * Enhanced Story Editor — three modes:
@@ -100,7 +100,7 @@ const DEFAULT_PROJECT = 'PLAT';
             <div class="form-group">
               <label class="form-label">Existing Epic Key (if created in JIRA)</label>
               <input class="form-control" formControlName="epicKey"
-                     placeholder="PLAT-10" style="font-family:monospace;text-transform:uppercase"
+                     placeholder="COMMSSURV-10" style="font-family:monospace;text-transform:uppercase"
                      (input)="uppercaseInput($event, epicForm, 'epicKey')">
             </div>
 
@@ -387,7 +387,7 @@ const DEFAULT_PROJECT = 'PLAT';
               <div class="flex gap-8">
                 <input class="form-control" formControlName="epicLink"
                        style="font-family:monospace;text-transform:uppercase"
-                       placeholder="PLAT-5"
+                       placeholder="COMMSSURV-5"
                        (blur)="resolveEpic()"
                        (input)="onEpicInput($event)">
                 <button type="button" class="btn btn-secondary btn-sm"
@@ -544,7 +544,7 @@ const DEFAULT_PROJECT = 'PLAT';
                 <label class="form-label">JIRA Issue Key</label>
                 <input class="form-control" [(ngModel)]="updateIssueKey"
                        style="font-family:monospace;text-transform:uppercase"
-                       placeholder="PLAT-123"
+                       placeholder="COMMSSURV-123"
                        (keydown.enter)="loadStory()">
               </div>
               <button class="btn btn-primary" (click)="loadStory()"

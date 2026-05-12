@@ -3,6 +3,7 @@ import { CommonModule, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { JiraService } from '../../core/services/jira.service';
 import { ExportService } from '../../core/services/export.service';
+import { JiraKeyComponent } from '../../shared/components/jira-key.component';
 import { PiSprintReport, TeamSprintReport, SprintStoryDetail, JiraSprint } from '../../core/models';
 
 const DEFAULT_PROJECT = 'COMMSSURV';
@@ -29,7 +30,7 @@ const DEFAULT_PROJECT = 'COMMSSURV';
 @Component({
   selector: 'app-sprint-report',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, JiraKeyComponent],
   template: `
   <div>
 
@@ -382,7 +383,7 @@ const DEFAULT_PROJECT = 'COMMSSURV';
               </thead>
               <tbody>
                 <tr *ngFor="let s of team.completedStories">
-                  <td class="issue-key-cell">{{ s.issueKey }}</td>
+                  <td class="issue-key-cell"><app-jira-key [issueKey]="s.issueKey" [label]="s.summary" /></td>
                   <td class="summary-cell">{{ s.summary }}</td>
                   <td>
                     <span class="badge" [ngClass]="typeBadge(s.issueType)">{{ s.issueType }}</span>
@@ -391,9 +392,8 @@ const DEFAULT_PROJECT = 'COMMSSURV';
                     <span class="sp-chip">{{ s.storyPoints ?? '—' }}</span>
                   </td>
                   <td class="text-sm text-secondary">
-                    <span *ngIf="s.epicLink" class="epic-tag" [title]="s.epicName">
-                      {{ s.epicLink }}
-                    </span>
+                    <app-jira-key *ngIf="s.epicLink" [issueKey]="s.epicLink" [type]="'epic'" [label]="s.epicName" />
+                    <span *ngIf="!s.epicLink" class="text-muted text-xs">—</span>
                   </td>
                   <td class="text-sm text-secondary">{{ s.assigneeName || '—' }}</td>
                   <td class="text-sm text-secondary">
@@ -422,7 +422,7 @@ const DEFAULT_PROJECT = 'COMMSSURV';
               </thead>
               <tbody>
                 <tr *ngFor="let s of team.spilledStories" class="spilled-row">
-                  <td class="issue-key-cell">{{ s.issueKey }}</td>
+                  <td class="issue-key-cell"><app-jira-key [issueKey]="s.issueKey" [label]="s.summary" /></td>
                   <td class="summary-cell">{{ s.summary }}</td>
                   <td>
                     <span class="badge" [ngClass]="statusBadge(s.status)">
@@ -461,7 +461,7 @@ const DEFAULT_PROJECT = 'COMMSSURV';
               </thead>
               <tbody>
                 <tr *ngFor="let s of team.addedStories" class="added-row">
-                  <td class="issue-key-cell">{{ s.issueKey }}</td>
+                  <td class="issue-key-cell"><app-jira-key [issueKey]="s.issueKey" [label]="s.summary" /></td>
                   <td class="summary-cell">{{ s.summary }}</td>
                   <td>
                     <span class="badge badge-success">{{ statusLabel(s.status) }}</span>

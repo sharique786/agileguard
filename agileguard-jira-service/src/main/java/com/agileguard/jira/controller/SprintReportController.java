@@ -19,7 +19,7 @@ import java.util.List;
  * GET /api/jira/sprint-report
  *   Generates full programme-level sprint report for all feature teams.
  *   Query params:
- *     projectKey  (required)  — JIRA project key, e.g. "PLAT"
+ *     projectKey  (required)  — JIRA project key, e.g. "COMMSSURV"
  *     sprintId    (optional)  — numeric sprint ID; omit for active sprint
  *     pi          (optional)  — PI label e.g. "PI-7" for display only
  *

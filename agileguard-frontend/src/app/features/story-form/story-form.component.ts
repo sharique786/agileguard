@@ -7,6 +7,7 @@ import { JiraService }          from '../../core/services/jira.service';
 import { TypeaheadComponent }   from '../../shared/components/typeahead.component';
 import { TagInputComponent }    from '../../shared/components/tag-input.component';
 import { GapTypeLabelPipe }    from '../../core/pipes/gap-type-label.pipe';
+import { JiraKeyComponent }    from '../../shared/components/jira-key.component';
 import {
   ValidationResult, JiraSprint, JiraUser, JiraEpic, JiraIssue,
   GeneratedStory, StoryEnhancementResponse, GapReport
@@ -17,7 +18,7 @@ const PROJECT = 'COMMSSURV';
 @Component({
   selector: 'app-story-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, TypeaheadComponent, TagInputComponent, GapTypeLabelPipe],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, TypeaheadComponent, TagInputComponent, GapTypeLabelPipe, JiraKeyComponent],
   template: `
   <div>
     <!-- Header -->
@@ -85,9 +86,7 @@ const PROJECT = 'COMMSSURV';
           </div>
 
           <!-- STEP 2a: Fetch existing epic -->
-
           <div class="card mb-16" *ngIf="epicSource() === 'existing'">
-
             <div class="section-head">Step 2 — Fetch Existing Epic</div>
             <div class="flex gap-10 items-end mb-8">
               <div class="form-group" style="flex:1;margin-bottom:0">
@@ -97,20 +96,18 @@ const PROJECT = 'COMMSSURV';
                        placeholder="COMMSSURV-10"
                        (input)="fetchEpicKey = $any($event.target).value.toUpperCase()">
               </div>
-              <div class="epic-fetch-row">
-              <button class="btn btn-primary fetch-btn" (click)="fetchAndInspectEpic()"
+              <button class="btn btn-primary" (click)="fetchAndInspectEpic()"
                       [disabled]="!fetchEpicKey || epicInspecting()">
                 <span *ngIf="epicInspecting()" class="spinner" style="width:14px;height:14px"></span>
                 {{ epicInspecting() ? 'Inspecting…' : '🔍 Fetch & Inspect' }}
               </button>
-                </div>
             </div>
 
             <!-- Epic inspection results -->
             <ng-container *ngIf="epicInspection() as insp">
               <div class="epic-info-banner">
                 <div class="flex items-center gap-10">
-                  <span class="badge badge-purple">{{ insp.epicKey }}</span>
+                  <app-jira-key [issueKey]="insp.epicKey" [type]="'epic'" [label]="insp.epicName" />
                   <strong>{{ insp.epicName }}</strong>
                   <span class="badge badge-gray">{{ insp.epicStatus }}</span>
                 </div>
@@ -127,7 +124,7 @@ const PROJECT = 'COMMSSURV';
                 <div *ngFor="let gr of insp.gapReports" class="gap-row"
                      [class.gap-row-flagged]="gr.flagged">
                   <div class="flex items-center gap-8 flex-1">
-                    <span class="issue-key-sm">{{ gr.issueKey }}</span>
+                    <app-jira-key [issueKey]="gr.issueKey" [label]="gr.issueSummary" />
                     <div class="score-bar-wrap">
                       <div class="score-bar-fill"
                            [style.width.%]="gr.qualityScore"
@@ -196,7 +193,7 @@ const PROJECT = 'COMMSSURV';
 
           <!-- Created epic confirmation -->
           <div class="alert alert-success mb-16" *ngIf="createdEpic() as ce">
-            ✅ Epic <strong>{{ ce.key }}</strong> — "{{ ce.summary }}" created in JIRA.
+            ✅ Epic <app-jira-key [issueKey]="ce.key" [type]="'epic'" [label]="ce.summary" /> — "{{ ce.summary }}" created in JIRA.
             Configure your team below and generate stories.
           </div>
 
@@ -424,7 +421,7 @@ const PROJECT = 'COMMSSURV';
               </div>
               <!-- Resolved epic badge -->
               <div *ngIf="resolvedEpic() as ep" class="epic-badge mt-6">
-                <span class="epic-key-tag">{{ ep.issueKey }}</span>
+                <app-jira-key [issueKey]="ep.issueKey" [type]="'epic'" [label]="ep.name" />
                 <span class="epic-name-tag">{{ ep.name }}</span>
                 <span class="badge badge-purple" style="font-size:10px">Epic</span>
                 <button type="button" class="btn-icon" (click)="clearEpic()">×</button>
@@ -631,13 +628,11 @@ const PROJECT = 'COMMSSURV';
                        (input)="updateKey = $any($event.target).value.toUpperCase()"
                        (keydown.enter)="loadStory()">
               </div>
-              <div class="jira-load-row">
-                  <button class="btn btn-primary load-btn" (click)="loadStory()"
-                          [disabled]="!updateKey || storyLoading()">
-                    <span *ngIf="storyLoading()" class="spinner" style="width:14px;height:10px"></span>
-                    {{ storyLoading() ? 'Loading&#8230;' : '&#x1F4E5; Load' }}
-                  </button>
-              </div>
+              <button class="btn btn-primary" (click)="loadStory()"
+                      [disabled]="!updateKey || storyLoading()">
+                <span *ngIf="storyLoading()" class="spinner" style="width:14px;height:14px"></span>
+                {{ storyLoading() ? 'Loading\u2026' : '\U0001f4e5 Load' }}
+              </button>
             </div>
           </div>
 
@@ -647,7 +642,7 @@ const PROJECT = 'COMMSSURV';
               <div class="flex justify-between items-start mb-12">
                 <div style="flex:1;min-width:0">
                   <div class="flex items-center gap-8 mb-6 flex-wrap">
-                    <span class="issue-key-badge">{{ ls.key }}</span>
+                    <app-jira-key [issueKey]="ls.key" [label]="ls.summary" />
                     <span class="badge badge-gray">{{ ls.status }}</span>
                     <span *ngIf="ls.storyPoints" class="badge badge-info">{{ ls.storyPoints }} SP</span>
                     <span *ngIf="ls.priority" class="badge badge-gray">{{ ls.priority }}</span>
@@ -656,7 +651,7 @@ const PROJECT = 'COMMSSURV';
 
                   <!-- Epic context status row -->
                   <div *ngIf="ls.epicLink" class="epic-context-row">
-                    <span class="badge badge-purple" style="flex-shrink:0">{{ ls.epicLink }}</span>
+                    <app-jira-key [issueKey]="ls.epicLink" [type]="'epic'" [label]="ls.epicName || 'Epic'" />
                     <span class="epic-name-inline">{{ ls.epicName || 'Epic' }}</span>
                     <span *ngIf="epicContextLoading()" class="spinner" style="width:12px;height:12px;flex-shrink:0"></span>
                     <span *ngIf="epicContext() && !epicContextLoading()"
@@ -873,7 +868,6 @@ const PROJECT = 'COMMSSURV';
     /* AI disclaimer */
     .ai-disclaimer {
       display:flex; align-items:flex-start; gap:12px;
-      margin-bottom: 16px;
       padding:12px 16px; background:#fffbeb; border:1px solid #f59e0b;
       border-radius:var(--radius-lg); font-size:13px; color:#78350f;
     }
@@ -905,32 +899,6 @@ const PROJECT = 'COMMSSURV';
     .radio-icon { font-size:24px; flex-shrink:0; }
     .radio-label { font-size:13px; font-weight:700; color:var(--text-primary); }
     .radio-sub   { font-size:11px; color:var(--text-muted); margin-top:2px; }
-
-    .jira-load-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 20px;
-    }
-
-    .load-btn {
-      height: 38px;           /* match input height */
-      padding: 0 16px;
-      white-space: nowrap;
-    }
-
-    .epic-fetch-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 20px;
-    }
-
-    .fetch-btn {
-      height: 38px;
-      padding: 0 18px;
-      white-space: nowrap;
-    }
 
     /* Epic info banner */
     .epic-info-banner {
@@ -1086,10 +1054,10 @@ export class StoryFormComponent implements OnDestroy {
   projectKey = PROJECT;
 
   modes: Array<{
-      key: 'epic' | 'create' | 'update';
-      icon: string;
-      label: string;
-      desc: string;
+        key: 'epic' | 'create' | 'update';
+        icon: string;
+        label: string;
+        desc: string;
   }> = [
     { key: 'epic',   icon: '🏗', label: 'Create Epic',   desc: 'Create or inspect epic → generate stories' },
     { key: 'create', icon: '📝', label: 'Create Story',  desc: 'Write new story with AI assistance' },

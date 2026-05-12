@@ -80,7 +80,7 @@ export class JiraService {
 
   // ── Epic management ───────────────────────────────────────────────────────
 
-  /** Resolves an epic key (e.g. "PLAT-5") to its name and status. */
+  /** Resolves an epic key (e.g. "COMMSSURV-5") to its name and status. */
   getEpic(epicKey: string): Observable<ApiResponse<JiraEpic>> {
     return this.http.get<ApiResponse<JiraEpic>>(`${this.base}/epics/${epicKey}`);
   }

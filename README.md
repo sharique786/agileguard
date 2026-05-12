@@ -154,9 +154,9 @@ cd agileguard-frontend && npm install && npm start
 
 | Role | Email | Password |
 |------|-------|---------|
-| Admin | admin@acme.com | Admin@1234 |
-| Developer | dev@acme.com | Dev@1234 |
-| QA Tester | qa@acme.com | Qa@1234 |
+| Admin | admin@db.com | Admin@1234 |
+| Developer | dev@db.com | Dev@1234 |
+| QA Tester | qa@db.com | Qa@1234 |
 
 ### Developer Console Links
 
@@ -401,7 +401,7 @@ A failed gate returns HTTP 400 with every unmet condition listed by name.
 | Story Points | Dropdown | — | Fibonacci: 1 2 3 5 8 13 21 |
 | Reporter | Typeahead single | — | Searches JIRA users by name or email |
 | Sprint | Typeahead single | — | Active + future sprints, shows goal + end date |
-| Epic Link | Text + Resolve | — | Types "PLAT-5" → fetches epic name on blur |
+| Epic Link | Text + Resolve | — | Types "COMMSSURV-5" → fetches epic name on blur |
 | Component/s | Typeahead multi | — | Tag chips, filtered project components |
 | Fix Version/s | Typeahead multi | — | Tag chips with release dates |
 | Labels | Tag input | — | Enter or comma to add free-text tags |

@@ -26,7 +26,7 @@ public class EpicGenerationRequest {
     @NotBlank(message = "Epic description in plain English is required")
     private String epicDescription;
 
-    /** Existing JIRA epic key if already created (e.g., "PLAT-10"). Null if new. */
+    /** Existing JIRA epic key if already created (e.g., "COMMSSURV-10"). Null if new. */
     private String epicKey;
 
     private String projectKey;
