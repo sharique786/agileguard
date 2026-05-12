@@ -8,7 +8,6 @@ import { TypeaheadComponent }   from '../../shared/components/typeahead.componen
 import { TagInputComponent }    from '../../shared/components/tag-input.component';
 import { GapTypeLabelPipe }    from '../../core/pipes/gap-type-label.pipe';
 import { JiraKeyComponent }    from '../../shared/components/jira-key.component';
-import { ConfluenceService, ConfluencePageContent } from '../../core/services/confluence.service';
 import {
   ValidationResult, JiraSprint, JiraUser, JiraEpic, JiraIssue,
   GeneratedStory, StoryEnhancementResponse, GapReport
@@ -104,37 +103,6 @@ const PROJECT = 'COMMSSURV';
               </button>
             </div>
 
-            <!-- Confluence page context for existing epic -->
-            <div class="confluence-context-panel">
-              <div class="cc-header">
-                <span class="cc-icon">📄</span>
-                <span class="cc-label">Confluence Page Context <span class="cc-opt">(optional)</span></span>
-              </div>
-              <p class="cc-hint">Fetch a Confluence spec page to enrich AI story generation with detailed requirements context.</p>
-              <div class="flex gap-8 mb-8">
-                <input class="form-control" [(ngModel)]="epicConfluenceUrl" [ngModelOptions]="{standalone:true}"
-                       placeholder="https://yourcompany.atlassian.net/wiki/spaces/…"
-                       (keydown.enter)="fetchEpicConfluencePage()">
-                <button type="button" class="btn btn-secondary btn-sm"
-                        (click)="fetchEpicConfluencePage()"
-                        [disabled]="!epicConfluenceUrl || confluenceSvc.loading()">
-                  <span *ngIf="confluenceSvc.loading()" class="spinner" style="width:12px;height:12px"></span>
-                  {{ confluenceSvc.loading() ? 'Fetching…' : '📥 Fetch' }}
-                </button>
-                <button *ngIf="epicConfluencePage()" type="button"
-                        class="btn-icon" (click)="clearEpicConfluencePage()">×</button>
-              </div>
-              <div *ngIf="epicConfluencePage() as pg" class="cc-fetched">
-                <div class="cc-fetched-header">
-                  <span class="cc-fetched-icon">✅</span>
-                  <span class="cc-fetched-title">{{ pg.title }}</span>
-                  <span class="badge badge-info" style="font-size:10px">{{ pg.spaceKey }}</span>
-                </div>
-                <div class="cc-fetched-preview">{{ pg.excerpt }}</div>
-              </div>
-              <div *ngIf="confluenceSvc.error()" class="form-error mt-4">❌ {{ confluenceSvc.error() }}</div>
-            </div>
-
             <!-- Epic inspection results -->
             <ng-container *ngIf="epicInspection() as insp">
               <div class="epic-info-banner">
@@ -198,46 +166,6 @@ const PROJECT = 'COMMSSURV';
                           [class.error]="ei('epicDescription')"
                           placeholder="Describe the full scope: business goal, users affected, key features, constraints..."></textarea>
                 <div class="form-error" *ngIf="ei('epicDescription')">Required (min 30 chars)</div>
-              </div>
-
-              <!-- Confluence Page URL for LLM context -->
-              <div class="confluence-context-panel">
-                <div class="cc-header">
-                  <span class="cc-icon">📄</span>
-                  <span class="cc-label">Confluence Page Context <span class="cc-opt">(optional)</span></span>
-                </div>
-                <p class="cc-hint">
-                  Provide a Confluence page URL to give Gemini additional context when generating stories.
-                  The page content will be fetched and included in the AI prompt.
-                </p>
-                <div class="flex gap-8 mb-8">
-                  <input class="form-control" [(ngModel)]="epicConfluenceUrl" [ngModelOptions]="{standalone:true}"
-                         placeholder="https://yourcompany.atlassian.net/wiki/spaces/COMMSSURV/pages/12345/Feature+Spec"
-                         (keydown.enter)="fetchEpicConfluencePage()">
-                  <button type="button" class="btn btn-secondary btn-sm"
-                          (click)="fetchEpicConfluencePage()"
-                          [disabled]="!epicConfluenceUrl || confluenceSvc.loading()">
-                    <span *ngIf="confluenceSvc.loading()" class="spinner" style="width:12px;height:12px"></span>
-                    {{ confluenceSvc.loading() ? 'Fetching…' : '📥 Fetch Page' }}
-                  </button>
-                  <button *ngIf="epicConfluencePage()" type="button"
-                          class="btn-icon" (click)="clearEpicConfluencePage()" title="Remove context">×</button>
-                </div>
-                <!-- Fetched page preview -->
-                <div *ngIf="epicConfluencePage() as pg" class="cc-fetched">
-                  <div class="cc-fetched-header">
-                    <span class="cc-fetched-icon">✅</span>
-                    <span class="cc-fetched-title">{{ pg.title }}</span>
-                    <span class="badge badge-info" style="font-size:10px">{{ pg.spaceKey }}</span>
-                  </div>
-                  <div class="cc-fetched-preview">{{ pg.excerpt }}</div>
-                  <div class="cc-fetched-meta">
-                    {{ pg.bodyText.length }} chars extracted · will be sent as context to Gemini
-                  </div>
-                </div>
-                <div *ngIf="confluenceSvc.error()" class="form-error mt-4">
-                  ❌ {{ confluenceSvc.error() }}
-                </div>
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 <div class="form-group">
@@ -505,36 +433,6 @@ const PROJECT = 'COMMSSURV';
                         (click)="suggestFromEpic()" [disabled]="epicSuggesting()">
                   {{ epicSuggesting() ? '⏳ Suggesting…' : '🔗 Suggest from Epic' }}
                 </button>
-              </div>
-              <!-- Confluence context for story creation -->
-              <div class="confluence-context-panel" style="margin-top:10px">
-                <div class="cc-header">
-                  <span class="cc-icon">📄</span>
-                  <span class="cc-label">Confluence Page Context <span class="cc-opt">(optional)</span></span>
-                </div>
-                <p class="cc-hint">Link a Confluence spec page — its content will be included in the AI prompt when generating AC or description suggestions.</p>
-                <div class="flex gap-8 mb-8">
-                  <input class="form-control" [(ngModel)]="storyConfluenceUrl" [ngModelOptions]="{standalone:true}"
-                         placeholder="https://yourcompany.atlassian.net/wiki/spaces/…"
-                         (keydown.enter)="fetchStoryConfluencePage()">
-                  <button type="button" class="btn btn-secondary btn-sm"
-                          (click)="fetchStoryConfluencePage()"
-                          [disabled]="!storyConfluenceUrl || storyConfluenceLoading()">
-                    <span *ngIf="storyConfluenceLoading()" class="spinner" style="width:12px;height:12px"></span>
-                    {{ storyConfluenceLoading() ? 'Fetching…' : '📥 Fetch' }}
-                  </button>
-                  <button *ngIf="storyConfluencePage()" type="button"
-                          class="btn-icon" (click)="clearStoryConfluencePage()">×</button>
-                </div>
-                <div *ngIf="storyConfluencePage() as pg" class="cc-fetched">
-                  <div class="cc-fetched-header">
-                    <span class="cc-fetched-icon">✅</span>
-                    <span class="cc-fetched-title">{{ pg.title }}</span>
-                  </div>
-                  <div class="cc-fetched-preview">{{ pg.excerpt }}</div>
-                  <div class="cc-fetched-meta">Included in AI prompt · {{ pg.bodyText.length }} chars</div>
-                </div>
-                <div *ngIf="storyConfluenceError()" class="form-error mt-4">❌ {{ storyConfluenceError() }}</div>
               </div>
             </div>
 
@@ -1041,43 +939,6 @@ const PROJECT = 'COMMSSURV';
     .epic-key-tag { font-family:monospace; font-weight:700; color:#5b21b6; }
     .epic-name-tag { font-weight:500; color:var(--text-primary); font-size:13px; }
     .btn-icon { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:18px; }
-
-    /* ── Confluence Context Panel ──────────────────────────────────────── */
-    .confluence-context-panel {
-      border:1px dashed #93c5fd;
-      border-radius:var(--radius-lg);
-      background:#f0f9ff;
-      padding:14px 16px;
-      margin-top:12px;
-    }
-    .cc-header {
-      display:flex; align-items:center; gap:8px; margin-bottom:6px;
-    }
-    .cc-icon  { font-size:16px; }
-    .cc-label { font-size:13px; font-weight:700; color:#0369a1; }
-    .cc-opt   { font-weight:400; color:var(--text-muted); font-size:11px; margin-left:4px; }
-    .cc-hint  { font-size:12px; color:#475569; margin:0 0 10px; line-height:1.5; }
-    .cc-fetched {
-      padding:10px 12px;
-      background:#fff;
-      border:1px solid #bae6fd;
-      border-radius:var(--radius);
-      margin-top:6px;
-    }
-    .cc-fetched-header {
-      display:flex; align-items:center; gap:8px; margin-bottom:6px;
-    }
-    .cc-fetched-icon  { font-size:14px; }
-    .cc-fetched-title { font-size:13px; font-weight:700; color:#0369a1; flex:1; }
-    .cc-fetched-preview {
-      font-size:12px; color:var(--text-secondary); line-height:1.5;
-      max-height:64px; overflow:hidden; text-overflow:ellipsis;
-      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
-    }
-    .cc-fetched-meta {
-      font-size:11px; color:var(--text-muted); margin-top:6px;
-    }
-
     .context-hint {
       margin-top:6px; font-size:12px; color:#0369a1;
       background:#e0f2fe; border-radius:var(--radius); padding:6px 10px;
@@ -1193,10 +1054,10 @@ export class StoryFormComponent implements OnDestroy {
   projectKey = PROJECT;
 
   modes: Array<{
-          key: 'epic' | 'create' | 'update';
-          icon: string;
-          label: string;
-          desc: string;
+        key: 'epic' | 'create' | 'update';
+        icon: string;
+        label: string;
+        desc: string;
   }> = [
     { key: 'epic',   icon: '🏗', label: 'Create Epic',   desc: 'Create or inspect epic → generate stories' },
     { key: 'create', icon: '📝', label: 'Create Story',  desc: 'Write new story with AI assistance' },
@@ -1308,16 +1169,7 @@ export class StoryFormComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
   private validate$= new Subject<void>();
 
-  // ── Confluence context signals ─────────────────────────────────────────────
-  epicConfluenceUrl    = '';
-  epicConfluencePage   = signal<ConfluencePageContent | null>(null);
-  storyConfluenceUrl   = '';
-  storyConfluencePage  = signal<ConfluencePageContent | null>(null);
-  storyConfluenceLoading = signal(false);
-  storyConfluenceError   = signal('');
-
-  constructor(private fb: FormBuilder, private ai: AiService, private jira: JiraService,
-              public confluenceSvc: ConfluenceService) {
+  constructor(private fb: FormBuilder, private ai: AiService, private jira: JiraService) {
     this.validate$.pipe(debounceTime(1200), distinctUntilChanged(), takeUntil(this.destroy$))
         .subscribe(() => this.runValidation());
     this.storyForm.valueChanges.pipe(takeUntil(this.destroy$))
@@ -1370,17 +1222,9 @@ export class StoryFormComponent implements OnDestroy {
     const v = this.epicForm.value;
     const epic = this.createdEpic();
     const insp  = this.epicInspection();
-    const confPage = this.epicConfluencePage();
-
-    // Build enriched description — append Confluence page content if available
-    let epicDescription = v.epicDescription ?? insp?.epicName ?? '';
-    if (confPage?.bodyText) {
-      epicDescription += `\n\n--- CONFLUENCE PAGE CONTEXT (${confPage.title}) ---\n${confPage.bodyText.slice(0, 4000)}`;
-    }
-
     const req = {
       epicTitle:       epic?.summary ?? insp?.epicName ?? v.epicTitle ?? '',
-      epicDescription,
+      epicDescription: v.epicDescription ?? insp?.epicName ?? '',
       epicKey:         epic?.key ?? insp?.epicKey,
       projectKey:      this.projectKey,
       businessLine:    v.businessLine ?? '',
@@ -1392,48 +1236,11 @@ export class StoryFormComponent implements OnDestroy {
       developerBandwidthSp: this.devBandwidth,
       components: this.epicComponents().map(c => c.name),
       labels: this.epicLabels(),
-      confluenceContext: confPage ? { title: confPage.title, url: confPage.url } : undefined,
     };
     this.ai.generateStoriesFromEpic(req).subscribe({
       next: r => { this.epicResult.set(r.data); this.epicGenerating.set(false); },
       error: () => this.epicGenerating.set(false)
     });
-  }
-
-  // ── Confluence page fetch methods ─────────────────────────────────────────
-
-  fetchEpicConfluencePage(): void {
-    if (!this.epicConfluenceUrl) return;
-    this.confluenceSvc.loading.set(true);
-    this.confluenceSvc.error.set('');
-    this.confluenceSvc.fetchPage(this.epicConfluenceUrl).subscribe(r => {
-      this.confluenceSvc.loading.set(false);
-      if (r?.data) { this.epicConfluencePage.set(r.data); }
-      else { this.confluenceSvc.error.set(r?.message ?? 'Failed to fetch page.'); }
-    });
-  }
-
-  clearEpicConfluencePage(): void {
-    this.epicConfluencePage.set(null);
-    this.epicConfluenceUrl = '';
-    this.confluenceSvc.error.set('');
-  }
-
-  fetchStoryConfluencePage(): void {
-    if (!this.storyConfluenceUrl) return;
-    this.storyConfluenceLoading.set(true);
-    this.storyConfluenceError.set('');
-    this.confluenceSvc.fetchPage(this.storyConfluenceUrl).subscribe(r => {
-      this.storyConfluenceLoading.set(false);
-      if (r?.data) { this.storyConfluencePage.set(r.data); }
-      else { this.storyConfluenceError.set(r?.message ?? 'Failed to fetch page.'); }
-    });
-  }
-
-  clearStoryConfluencePage(): void {
-    this.storyConfluencePage.set(null);
-    this.storyConfluenceUrl = '';
-    this.storyConfluenceError.set('');
   }
 
   toggleExpGen(i: number): void {

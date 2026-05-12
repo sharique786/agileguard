@@ -5,10 +5,11 @@
 spring:
   application:
     name: agileguard-gateway
-  main:
-    web-application-type: reactive
   profiles:
     active: local
+  main:
+    web-application-type: reactive
+
   cloud:
     gateway:
       default-filters:
@@ -22,46 +23,90 @@ spring:
             allowedHeaders: "*"
             allowCredentials: true
       routes:
-        - id: auth-service
-          uri: http://localhost:8081
-          predicates: [Path=/api/auth/**]
-          filters: [StripPrefix=0]
 
-        - id: onboarding-service
+        # ── Public routes — NO JwtValidation filter ──────────────────────
+        # These endpoints handle their own auth or are intentionally public.
+        - id: auth-public
           uri: http://localhost:8081
-          predicates: [Path=/api/onboarding/**]
-          filters: [StripPrefix=0]
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
 
+        - id: onboarding-public
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/onboarding/**
+          filters:
+            - StripPrefix=0
+
+        # ── Protected routes — JWT validated ─────────────────────────────
+        # JwtValidation filter validates Bearer token, then injects
+        # X-Tenant-ID, X-User-ID, X-Role headers for downstream services.
         - id: admin-service
           uri: http://localhost:8081
-          predicates: [Path=/api/admin/**]
-          filters: [StripPrefix=0]
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
 
         - id: tenant-service
           uri: http://localhost:8081
-          predicates: [Path=/api/tenants/**] #[Path=/api/tenants/**, /api/projects/**]
-          filters: [StripPrefix=0]
+          predicates:
+            - Path=/api/tenants/**, /api/projects/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
 
         - id: jira-service
           uri: http://localhost:8082
-          predicates: [Path=/api/jira/**]
-          filters: [StripPrefix=0]
+          predicates:
+            - Path=/api/jira/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
 
         - id: ai-service
           uri: http://localhost:8083
-          predicates: [Path=/api/ai/**]
-          filters: [StripPrefix=0]
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
 
         - id: github-service
           uri: http://localhost:8084
-          predicates: [Path=/api/github/**]
-          filters: [StripPrefix=0]
+          predicates:
+            - Path=/api/github/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
+
+        # ── New routes added by recent enhancements ───────────────────────
+        # Confluence proxy and integration connectivity tests
+        - id: confluence-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/confluence/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
+
+        - id: integration-test
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/integrations/**
+          filters:
+            - JwtValidation
+            - StripPrefix=0
 
 server:
   port: 8080
 
 agileguard:
   jwt:
+    # LOCAL dev secret — NEVER use this value in any deployed environment
     secret: dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBhZ2lsZWd1YXJkIGp3dCBzaWduaW5n
 
 management:

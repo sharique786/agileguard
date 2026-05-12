@@ -1,13 +1,16 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule }      from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet } from '@angular/router';
-import { AuthService }            from './core/services/auth.service';
-import { TenantService }          from './core/services/tenant.service';
-import { JiraConfigService }      from './core/services/jira-config.service';
-import { SessionExpiredService }  from './core/services/session-expired.service';
-import { catchError }             from 'rxjs/operators';
-import { EMPTY }                  from 'rxjs';
+import { AuthService }          from './core/services/auth.service';
+import { TenantService }        from './core/services/tenant.service';
+import { JiraConfigService }    from './core/services/jira-config.service';
+import { SessionExpiredService } from './core/services/session-expired.service';
 
+/**
+ * Root component.
+ * Adds: session-expired modal overlay that appears on any 401 response.
+ * The SessionExpiredInterceptor triggers SessionExpiredService.isExpired.
+ */
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -62,6 +65,7 @@ import { EMPTY }                  from 'rxjs';
         </ng-container>
 
         <div style="flex:1"></div>
+
         <div style="padding:12px;border-top:1px solid var(--border)">
           <div style="font-size:13px;font-weight:600">{{ auth.currentUser()?.fullName }}</div>
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
@@ -71,42 +75,51 @@ import { EMPTY }                  from 'rxjs';
                   (click)="auth.logout()">Sign out</button>
         </div>
       </nav>
+
       <main class="main-content"><router-outlet /></main>
     </div>
 
     <ng-template #publicView><router-outlet /></ng-template>
   `,
   styles: [`
+    /* ── Session Expired Overlay ─────────────────────────────────────── */
     .session-overlay {
-      position:fixed; inset:0; z-index:99999;
-      background:rgba(15,23,42,.75); backdrop-filter:blur(4px);
-      display:flex; align-items:center; justify-content:center;
-      animation:fadeIn .2s ease-out;
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn .2s ease-out;
     }
-    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
     .session-modal {
-      background:#fff; border-radius:16px; padding:40px 48px;
-      max-width:460px; width:90%; text-align:center;
-      box-shadow:0 24px 64px rgba(0,0,0,.25);
-      animation:slideUp .25s cubic-bezier(.34,1.56,.64,1);
+      background: #fff; border-radius: 16px;
+      padding: 40px 48px; max-width: 460px; width: 90%;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0,0,0,.25);
+      animation: slideUp .25s cubic-bezier(.34,1.56,.64,1);
     }
-    @keyframes slideUp {
-      from{transform:translateY(24px);opacity:0}
-      to{transform:translateY(0);opacity:1}
+    @keyframes slideUp { from { transform:translateY(24px); opacity:0 } to { transform:translateY(0); opacity:1 } }
+
+    .session-modal-icon {
+      font-size: 56px; margin-bottom: 16px; line-height: 1;
     }
-    .session-modal-icon  { font-size:56px; margin-bottom:16px; }
-    .session-modal-title { font-size:22px; font-weight:800; color:#1e2761; margin:0 0 12px; }
-    .session-modal-body  { font-size:14px; color:#475569; line-height:1.7; margin:0 0 28px; }
-    .session-modal-btn   {
-      padding:12px 32px; background:#1e2761; color:#fff;
-      border:none; border-radius:8px; font-size:15px; font-weight:700;
-      cursor:pointer; transition:background .15s;
+    .session-modal-title {
+      font-size: 22px; font-weight: 800; color: #1e2761; margin: 0 0 12px;
     }
-    .session-modal-btn:hover { background:#0f3460; }
+    .session-modal-body {
+      font-size: 14px; color: #475569; line-height: 1.7; margin: 0 0 28px;
+    }
+    .session-modal-btn {
+      display: inline-block; padding: 12px 32px;
+      background: #1e2761; color: #fff; border: none; border-radius: 8px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: background .15s;
+    }
+    .session-modal-btn:hover { background: #0f3460; }
   `]
 })
 export class AppComponent implements OnInit {
-
   constructor(
     public  auth:       AuthService,
     public  sessionSvc: SessionExpiredService,
@@ -115,34 +128,20 @@ export class AppComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // Only attempt to seed the JIRA URL if the user is already logged in
-    // (e.g. page refresh with token still in sessionStorage).
-    // Use catchError(EMPTY) so ANY error — including 401 — is silently
-    // swallowed here and never reaches the sessionExpiredInterceptor.
-    if (this.auth.isLoggedIn()) {
-      this.seedJiraUrl();
-    }
+    if (this.auth.isLoggedIn()) { this.seedJiraUrl(); }
   }
 
   isAdmin(): boolean {
-    const role = this.auth.getRole();
-    return ['SUPER_ADMIN', 'TENANT_ADMIN', 'PROJECT_ADMIN'].includes(role);
+    return ['SUPER_ADMIN','TENANT_ADMIN','PROJECT_ADMIN'].includes(this.auth.getRole());
   }
 
   private seedJiraUrl(): void {
     if (this.jiraConfig.isConfigured()) return;
-
-    const tenantId = this.auth.getTenantId();
-    if (!tenantId) return;
-
-    this.tenantSvc.getTenant(tenantId).pipe(
-      // Silently swallow ALL errors — this is a best-effort background call.
-      // Errors here should NEVER trigger the session-expired modal.
-      catchError(() => EMPTY)
-    ).subscribe(r => {
-      if (r?.data?.jiraBaseUrl) {
-        this.jiraConfig.setBaseUrl(r.data.jiraBaseUrl);
-      }
+    const tid = this.auth.getTenantId();
+    if (!tid) return;
+    this.tenantSvc.getTenant(tid).subscribe({
+      next: r => { if (r?.data?.jiraBaseUrl) this.jiraConfig.setBaseUrl(r.data.jiraBaseUrl); },
+      error: () => {}
     });
   }
 }
